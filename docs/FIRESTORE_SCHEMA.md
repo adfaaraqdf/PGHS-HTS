@@ -157,6 +157,21 @@
 
 ### `clubs/{clubId}`
 
+이 컬렉션은 일반 관계형 DB의 `Stocks` 테이블 역할을 한다. 다만 이 서비스는 한국 학교 축제용 단일 모의 시장이므로, 종목마다 반복될 필요가 없는 국가·통화·시장 정보는 공통 설정으로 관리한다. 문서 ID는 자동 증가 정수가 아니라 변경되지 않는 공식 문자열 ID(`rechem`, `mechanism` 등)다.
+
+| 일반 Stocks 필드 | Firestore 종목 필드 | 적용 방식 |
+|---|---|---|
+| `id` (integer PK) | 문서 ID + `id` | 공식 문자열 `clubId`를 사용하며, 문서 ID와 `id`는 같아야 한다. |
+| `symbol` | `id` | 별도 숫자 종목 코드를 만들지 않고 공식 `clubId`를 검색·참조 코드로 쓴다. |
+| `name` | `displayName` | 학생에게 보이는 동아리명이다. |
+| `market` | `market/state` | 모든 종목이 하나의 축제 모의 시장을 공유하므로 종목별 필드가 아니다. |
+| `sector` | `category` | 동아리 분야·성격이다. |
+| `country` | 공통값 `KR` | 한국 학교 서비스의 고정 전제라 종목마다 저장하지 않는다. |
+| `currency` | 공통값 `KRW` | 모든 돈·가격은 원 단위 정수로 저장한다. |
+| `created_at`, `updated_at` | `createdAt`, `updatedAt` | 서버가 기록하는 Firestore `Timestamp`다. |
+
+주식 서비스에 필요한 시장 전용 필드는 `currentPrice`, `previousClose`, `priceChange`, `priceChangeRate`, `issuedShares`, `marketCap`, `buyVolume`, `sellVolume`, `totalVolume`, `tradingStatus`로 추가한다.
+
 | 필드 | 타입 | 제약/의미 |
 |---|---|---|
 | `schemaVersion` | integer | 양수 |
