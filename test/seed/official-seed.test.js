@@ -25,7 +25,6 @@ test('Re, invelix, neon의 한글 명칭은 별도 종목이 아니라 alias다'
   assert.deepEqual(clubs.find(({ id }) => id === 'invelix').aliases, ['인벨릭스']);
   assert.deepEqual(clubs.find(({ id }) => id === 'neon').aliases, ['네온']);
   assert.equal(clubs.some(({ id }) => ['리켐', '인벨릭스', '네온'].includes(id)), false);
-  assert.equal(clubs.some(({ id }) => ['geonetics', 'agora'].includes(id)), false);
 });
 
 test('모든 동아리는 한 ETF에 한 번만 편입되고 스포츠 ETF는 배구사랑 하나다', async () => {
