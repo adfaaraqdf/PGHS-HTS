@@ -34,7 +34,7 @@ service cloud.firestore {
         allow list: if request.auth != null
           && request.auth.uid == uid
           && isActiveUser(uid)
-          && boundedList(22);
+          && boundedList(20);
         allow create, update, delete: if false;
       }
 
@@ -58,7 +58,7 @@ service cloud.firestore {
 
     match /clubs/{clubId} {
       allow get: if isActiveSelf();
-      allow list: if isActiveSelf() && boundedList(22);
+      allow list: if isActiveSelf() && boundedList(20);
       allow create, update, delete: if false;
     }
 
@@ -70,7 +70,7 @@ service cloud.firestore {
 
     match /ratings/{clubId} {
       allow get: if isActiveSelf();
-      allow list: if isActiveSelf() && boundedList(22);
+      allow list: if isActiveSelf() && boundedList(20);
       allow create, update, delete: if false;
     }
 

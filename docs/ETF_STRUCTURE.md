@@ -28,8 +28,7 @@
     "componentClubIds": [
       "rechem",
       "mercury",
-      "chemist",
-      "geonetics"
+      "chemist"
     ]
   },
   {
@@ -51,8 +50,7 @@
       "paradigm",
       "teachist",
       "world-scope",
-      "heartbeat",
-      "agora"
+      "heartbeat"
     ]
   },
   {
@@ -78,12 +76,12 @@
 | ETF ID | 표시명 | 종목 수 | 구성 ID |
 |---|---|---:|---|
 | `etf-tech-engineering` | IT·공학 ETF | 4 | `mechanism`, `invelix`, `architecture`, `dynamics` |
-| `etf-natural-science` | 자연과학 ETF | 4 | `rechem`, `mercury`, `chemist`, `geonetics` |
+| `etf-natural-science` | 자연과학 ETF | 3 | `rechem`, `mercury`, `chemist` |
 | `etf-culture-media` | 문화예술·미디어 ETF | 4 | `neon`, `art-canvas`, `moment`, `broadcasting` |
-| `etf-humanities-social` | 인문사회·교육 ETF | 7 | `geulbitnuri`, `insight`, `paradigm`, `teachist`, `world-scope`, `heartbeat`, `agora` |
+| `etf-humanities-social` | 인문사회·교육 ETF | 6 | `geulbitnuri`, `insight`, `paradigm`, `teachist`, `world-scope`, `heartbeat` |
 | `etf-business-startup` | 경영·창업 ETF | 2 | `startup-patent-lab`, `reve` |
 | `etf-sports` | 스포츠 ETF | 1 | `volleyball-love` |
-| 합계 |  | **22** | 중복 없이 공식 동아리 전체 |
+| 합계 |  | **20** | 중복 없이 공식 동아리 전체 |
 
 ## 계산 계약
 
@@ -119,7 +117,7 @@ ETF priceChangeRate    = previousClose > 0
 | `isTradable` | 항상 `false` |
 | `isDiversified` | 구성 수가 2 이상일 때만 `true`; 스포츠 ETF는 `false` |
 | `calculatedAt`, `sourcePriceAsOf` | 서버 Timestamp |
-| `valuationVersion` | 22개 구성 가격과 동일한 공개 회차 ID |
+| `valuationVersion` | 20개 구성 가격과 동일한 공개 회차 ID |
 | `stale` | 허용 최대 지연 초과 또는 입력 이상 여부 |
 | `isFinal` | 폐장 최종 projection 여부 |
 | `schemaVersion` | 양의 정수 |
@@ -129,7 +127,7 @@ ETF priceChangeRate    = previousClose > 0
 ## 시드 및 CI 검증
 
 1. ETF 배열 길이와 서로 다른 ID 수가 6이다.
-2. `componentClubIds` 총 길이는 22이고 전체 집합 크기도 22다.
+2. `componentClubIds` 총 길이는 20이고 전체 집합 크기도 20이다.
 3. 모든 구성 ID가 `CLUB_CATALOG.md`에 존재하고 누락·중복·미등록 ID가 없다.
 4. 각 club의 `etfId`가 자신을 포함하는 ETF ID와 일치한다.
 5. `rechem`, `invelix`, `neon`만 구성 ID로 사용하고 별칭을 구성 ID로 쓰지 않는다.

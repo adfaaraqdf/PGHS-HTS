@@ -5,7 +5,7 @@
 - 0→12 순서를 지킨다. 사용자가 요청한 한 단계만 구현하며 다음 단계 코드를 선행하지 않는다.
 - 각 단계는 관련 문서·테스트·롤백 가능 상태를 함께 완료해야 통과한다. 운영 데이터 변경, Git push, 운영 배포는 별도 사용자 승인이 필요하다.
 - 파일 경로는 계획상 경로다. 구현 중 변경할 때는 `ARCHITECTURE.md`, `DATA_CONTRACTS.md`, `DECISIONS.md`와 이 문서를 먼저 동기화한다.
-- 공통 불변식은 서버 권위 쓰기, 정수 금액·가격·수량, UID 범위 격리, 멱등성, 22개 공식 종목·6개 ETF, bounded query/listener, 감사 가능성이다.
+- 공통 불변식은 서버 권위 쓰기, 정수 금액·가격·수량, UID 범위 격리, 멱등성, 20개 공식 종목·6개 ETF, bounded query/listener, 감사 가능성이다.
 
 ## 0단계 — 설계 문서
 
@@ -19,7 +19,7 @@
 `AGENTS.md`, `docs/PRODUCT_REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/FIRESTORE_SCHEMA.md`, `docs/SECURITY_MODEL.md`, `docs/DATA_CONTRACTS.md`, `docs/CLUB_CATALOG.md`, `docs/ETF_STRUCTURE.md`, `docs/PRICE_ENGINE.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/TEST_PLAN.md`, `docs/DEPLOYMENT_PLAN.md`, `docs/FESTIVAL_OPERATIONS.md`, `docs/DECISIONS.md`.
 
 ### 구현 범위
-기능·비기능 요구, 데이터 흐름, 컬렉션, Rules 경계, 가격·ETF·랭킹 정책, 0~12단계, 시험·배포·현장 운영·장애 복구·비용·폐장 계획을 문서화한다. 22개/6개/소속·별칭을 교차 검증한다.
+기능·비기능 요구, 데이터 흐름, 컬렉션, Rules 경계, 가격·ETF·랭킹 정책, 0~12단계, 시험·배포·현장 운영·장애 복구·비용·폐장 계획을 문서화한다. 20개/6개/소속·별칭을 교차 검증한다.
 
 ### 구현하지 않을 범위
 애플리케이션 코드, Firebase 리소스 생성, 패키지 설치, 시드 실행, Git commit/push, 배포.
@@ -31,7 +31,7 @@
 비밀·실제 계정 값을 기록하지 않고 자리표시자를 쓴다. 클라이언트 비신뢰와 서버 권위 쓰기를 모든 문서에서 일관되게 유지한다.
 
 ### 테스트 방법
-동아리 22개, 고유 ID 22개, ETF 6개, 구성 합계 22개, 각 동아리 정확히 1회, 모든 참조 유효, 세 별칭 비증권 여부를 검증한다. 요구·제외 기능·보안·동시성·비용·복구 항목의 추적표를 검토한다.
+동아리 20개, 고유 ID 20개, ETF 6개, 구성 합계 20개, 각 동아리 정확히 1회, 모든 참조 유효, 세 별칭 비증권 여부를 검증한다. 요구·제외 기능·보안·동시성·비용·복구 항목의 추적표를 검토한다.
 
 ### 완료 조건
 필수 14개 문서가 서로 모순 없이 존재하고, 외부 미정값이 `DECISIONS.md` 형식으로 기록되며 애플리케이션 변경이 없다.
@@ -106,7 +106,7 @@ Google Auth → ID token → `initializeUser({nickname})` → 서버 email/domai
 ## 3단계 — Firestore 스키마, Security Rules, 공식 시드
 
 ### 목표
-데이터 계약, deny-by-default Rules, 인덱스, 공정한 공식 22종목·6ETF·시장 설정 시드를 구현한다.
+데이터 계약, deny-by-default Rules, 인덱스, 공정한 공식 20종목·6ETF·시장 설정 시드를 구현한다.
 
 ### 선행 조건
 2단계 통과, 스키마·Rules·카탈로그·ETF·개발 기본값 승인.
@@ -127,7 +127,7 @@ Google Auth → ID token → `initializeUser({nickname})` → 서버 email/domai
 현금·보유·원장·가격·거래량·별점·ETF·랭킹·시장·감사 로그의 클라이언트 권위 쓰기를 차단한다. 타인 private read, 추가 필드, 잘못된 타입·음수·소수, 감사 로그 수정·삭제를 차단한다.
 
 ### 테스트 방법
-요구된 공격 Rules matrix 전체와 인덱스 query를 Emulator에서 검증한다. 22/6/고유성/정확히 1 ETF/alias 비중복/공통 초기값/재실행/비강제 덮어쓰기 차단을 자동 검증한다.
+요구된 공격 Rules matrix 전체와 인덱스 query를 Emulator에서 검증한다. 20/6/고유성/정확히 1 ETF/alias 비중복/공통 초기값/재실행/비강제 덮어쓰기 차단을 자동 검증한다.
 
 ### 완료 조건
 Rules·seed 테스트와 빌드가 통과하고 공식 데이터 외 항목이 없으며 일반 클라이언트가 권위 필드를 쓸 수 없다.
@@ -179,13 +179,13 @@ callable buy/sell, `{clubId,quantity,idempotencyKey}` 검증, 계정/시장/종�
 `functions/src/price/{tick,formula,inputs,aggregate}.js`, scheduler 설정, 가격 history/집계 Rules·index, 시뮬레이션·golden/property·Emulator 테스트, 모니터링 쿼리.
 
 ### 구현 범위
-60초 목표 tick, window별 10샤드 합산, milli-star Bayesian 수축, 수요 기반 `fundamentalPrice`, 별점·이벤트 절대 target premium, 현재가의 tick당 ±200bp 이동, 신호 half-up·bounded delta toward-zero, 최저 100원, 설정 버전·입력 해시·tick ID, 22개 club 후보와 `priceVersions` barrier, 22개 공개 가격의 단일 transaction publish, `priceCalculatedAt` 기준 120초 stale 감지를 구현한다.
+60초 목표 tick, window별 10샤드 합산, milli-star Bayesian 수축, 수요 기반 `fundamentalPrice`, 별점·이벤트 절대 target premium, 현재가의 tick당 ±200bp 이동, 신호 half-up·bounded delta toward-zero, 최저 100원, 설정 버전·입력 해시·tick ID, 20개 club 후보와 `priceVersions` barrier, 20개 공개 가격의 단일 transaction publish, `priceCalculatedAt` 기준 120초 stale 감지를 구현한다.
 
 ### 구현하지 않을 범위
 클라이언트 가격 쓰기, 전체 trade scan, 종목별 차등 계수, 복잡한 예측·랜덤성, 0 이하 가격, ETF 계산·publish(7단계), 랭킹(8단계).
 
 ### 데이터 흐름
-멱등 scheduler tick → market state/config 읽기 → 닫힌 demand window 샤드·rating·활성 events 읽기 → 정수 fundamental/target 계산 → 22개 `priceRuns` 후보 → version barrier → 22개 clubs+market price pointer+version 원자 publish. 7·8단계가 사용할 회차 완료 신호만 남긴다.
+멱등 scheduler tick → market state/config 읽기 → 닫힌 demand window 샤드·rating·활성 events 읽기 → 정수 fundamental/target 계산 → 20개 `priceRuns` 후보 → version barrier → 20개 clubs+market price pointer+version 원자 publish. 7·8단계가 사용할 회차 완료 신호만 남긴다.
 
 ### 보안 고려사항
 Admin SDK 전용 쓰기, 설정 변경 관리자·감사 로그, tick lease/ID로 중복 실행 차단, 입력·설정 해시로 재현성을 보장한다.
@@ -211,7 +211,7 @@ Admin SDK 전용 쓰기, 설정 변경 관리자·감사 로그, tick lease/ID�
 `src/views/{home,market,club,portfolio}.js`, 관련 component/service/store/CSS, 접근성·UI·E2E 테스트.
 
 ### 구현 범위
-TOP 상승/하락, 인기, 속보, 22종목 검색·정렬, 상세 정보·별점·뉴스·보유·buy/sell, 현금·평가액·총자산·평균가·수익률, loading/empty/error/retry/offline/stale 상태를 구현한다. 홈의 ETF preview 영역은 7단계 전까지 명시적 준비 상태만 제공한다.
+TOP 상승/하락, 인기, 속보, 20종목 검색·정렬, 상세 정보·별점·뉴스·보유·buy/sell, 현금·평가액·총자산·평균가·수익률, loading/empty/error/retry/offline/stale 상태를 구현한다. 홈의 ETF preview 영역은 7단계 전까지 명시적 준비 상태만 제공한다.
 
 ### 구현하지 않을 범위
 복잡한 차트·과도한 애니메이션, 무제한 거래 내역, 누락 부스 정보 추정, 실제 ETF 계산·목록·preview, ETF 거래, 관리자·랭킹·별점 연동 선행 구현.
@@ -237,25 +237,25 @@ Hosting을 이전 UI release로 되돌린다. 서버 계약은 하위 호환을 
 6개 조회용 ETF의 동일 가중 가격·등락률·구성 정보를 제공한다.
 
 ### 선행 조건
-6단계 시장 가격 UI, 22→6 정확한 구성 검증, ETF 기준가 계약.
+6단계 시장 가격 UI, 20→6 정확한 구성 검증, ETF 기준가 계약.
 
 ### 생성·수정 파일
 ETF 계산/자료화 Function 또는 서버 모듈, `src/views/etf.js`, ETF components/service, Rules·index·단위/E2E 테스트.
 
 ### 구현 범위
-구성 가격의 동일 가중 산술평균, 원 단위 결정론 반올림, 기준 대비 등락률, 구성 종목 표시를 구현한다. 가격 publisher를 확장해 22개 price run이 준비된 뒤 ETF 후보 6개를 만들고 clubs·ETF·price pointer를 같은 publish transaction에 넣는다. 홈 preview와 ETF 화면을 연결하고 스포츠 ETF 단일종목 경고를 표시한다.
+구성 가격의 동일 가중 산술평균, 원 단위 결정론 반올림, 기준 대비 등락률, 구성 종목 표시를 구현한다. 가격 publisher를 확장해 20개 price run이 준비된 뒤 ETF 후보 6개를 만들고 clubs·ETF·price pointer를 같은 publish transaction에 넣는다. 홈 preview와 ETF 화면을 연결하고 스포츠 ETF 단일종목 경고를 표시한다.
 
 ### 구현하지 않을 범위
 ETF 매수·매도, 배당·리밸런싱·가중치 사용자 변경, 분산효과 과장.
 
 ### 데이터 흐름
-22개 price run 준비 → 공식 구성 검증·ETF 후보 6개 계산 → 22 clubs+6 ETFs+price pointer+version 원자 publish → 홈 preview/ETF 화면 bounded listener.
+20개 price run 준비 → 공식 구성 검증·ETF 후보 6개 계산 → 20 clubs+6 ETFs+price pointer+version 원자 publish → 홈 preview/ETF 화면 bounded listener.
 
 ### 보안 고려사항
 클라이언트 ETF 쓰기를 금지하고 구성은 공식 정본만 허용한다. 잘못된/누락 component면 이전 정상값 유지와 장애 표시를 한다.
 
 ### 테스트 방법
-6개, 모든 22개 정확히 1회, invalid/duplicate ID, 동일 가중·반올림·등락률, 스포츠 ETF, 중복 실행·부분 실패를 시험한다. publish 전후 club `lastPriceWindowId`와 ETF `valuationVersion`이 섞이지 않고 UI stale/error가 정확한지 검증한다.
+6개, 모든 20개 정확히 1회, invalid/duplicate ID, 동일 가중·반올림·등락률, 스포츠 ETF, 중복 실행·부분 실패를 시험한다. publish 전후 club `lastPriceWindowId`와 ETF `valuationVersion`이 섞이지 않고 UI stale/error가 정확한지 검증한다.
 
 ### 완료 조건
 ETF 수·구성과 계산이 정본과 일치하고 거래 UI/Function이 존재하지 않는다.

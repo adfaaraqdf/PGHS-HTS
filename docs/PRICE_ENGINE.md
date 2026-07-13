@@ -2,7 +2,7 @@
 
 ## 1. 목적과 비목표
 
-가격 엔진은 별점, 닫힌 거래 수요 창, 관리자 이벤트를 이용해 공식 동아리 22개의 가격을 예측 가능하고 공정하게 갱신한다. 최종 가격은 서버만 기록하며 같은 입력과 설정 버전은 같은 결과를 낸다.
+가격 엔진은 별점, 닫힌 거래 수요 창, 관리자 이벤트를 이용해 공식 동아리 20개의 가격을 예측 가능하고 공정하게 갱신한다. 최종 가격은 서버만 기록하며 같은 입력과 설정 버전은 같은 결과를 낸다.
 
 목표는 실제 증권시장을 정밀 모사하는 것이 아니라 축제에서 설명 가능하고 조작에 강한 가격 흐름을 제공하는 것이다. 호가·지정가·시장조성·공매도·파생상품·복잡한 차트는 설계하지 않는다. ETF는 매매 대상이 아닌 동일 가중 조회 지수다.
 
@@ -162,16 +162,16 @@ target이 1회 상한 밖이면 현재가는 매 tick 같은 target을 향해 �
 1. 정규 스케줄 호출은 `market/state.status=open`과 마지막 완료 window를 확인한다. `halted`에서는 새 회차를 만들지 않되 incident-admin이 같은 실패 window/run ID를 복구 재실행할 수 있다. 폐장 최종 tick은 시장이 `closed`인 상태에서 승인된 `closureRuns/{closureId}.status=running`을 가진 별도 명령만 허용한다.
 2. `serviceLeases/price-coordinator`를 transaction으로 획득하고 증가하는 fencing token과 expiry를 기록한다.
 3. 활성 demand window를 회전하고 이전 창을 `closed`로 고정한다.
-4. 22개 club 각각에 결정적 ID `windowId_clubId`인 `priceRuns`를 만든다.
+4. 20개 club 각각에 결정적 ID `windowId_clubId`인 `priceRuns`를 만든다.
 5. run이 이미 `completed`면 저장 결과를 반환하고 가격을 다시 쓰지 않는다.
 6. 입력을 읽고 후보 결과를 `priceRuns`에 완료한다. 이 단계는 공개 `clubs`를 변경하지 않는다.
-7. 22개 성공을 확인해 `priceVersions/{windowId}=ready`로 만든다. 5단계에서는 알려진 22개 run과 이전 version을 검증하고 22개 `clubs`, `market/state.currentPriceWindowId`, version=`published`를 한 transaction에 커밋한다.
-8. 7단계부터는 ready 뒤 ETF 후보 6개를 계산하고 publisher를 최종 프로토콜로 확장한다. 이 transaction은 22개 `clubs`, 6개 `etfs`, pointer, version=`published`를 함께 커밋하며 모든 club의 `priceCalculatedAt`과 ETF `calculatedAt/sourcePriceAsOf`는 같은 publish 시각이다.
+7. 20개 성공을 확인해 `priceVersions/{windowId}=ready`로 만든다. 5단계에서는 알려진 20개 run과 이전 version을 검증하고 20개 `clubs`, `market/state.currentPriceWindowId`, version=`published`를 한 transaction에 커밋한다.
+8. 7단계부터는 ready 뒤 ETF 후보 6개를 계산하고 publisher를 최종 프로토콜로 확장한다. 이 transaction은 20개 `clubs`, 6개 `etfs`, pointer, version=`published`를 함께 커밋하며 모든 club의 `priceCalculatedAt`과 ETF `calculatedAt/sourcePriceAsOf`는 같은 publish 시각이다.
 9. lease를 해제하고 duration, read/write 수, retry, clamp 여부, stale age를 기록한다.
 
-한 club 계산 실패는 같은 run ID로 그 club만 재시도한다. 어떤 `clubs`/ETF 문서도 22개가 모두 준비되기 전 바뀌지 않는다. 원자 publish transaction은 22개 club + 6개 ETF + market state + version, 총 30개의 작은 문서를 한 번에 쓰는 구조이며 실제 문서·인덱스 크기, 경합, Firestore transaction 한도를 staging 부하 테스트로 검증한다. publish 실패 시 이전 회차가 그대로 공개된다.
+한 club 계산 실패는 같은 run ID로 그 club만 재시도한다. 어떤 `clubs`/ETF 문서도 20개가 모두 준비되기 전 바뀌지 않는다. 원자 publish transaction은 20개 club + 6개 ETF + market state + version, 총 28개의 작은 문서를 한 번에 쓰는 구조이며 실제 문서·인덱스 크기, 경합, Firestore transaction 한도를 staging 부하 테스트로 검증한다. publish 실패 시 이전 회차가 그대로 공개된다.
 
-단계 순서는 유지한다. 5단계에서는 ETF를 선행 구현하지 않고 22개 club + market state + version만 원자 publish한다. 7단계가 ETF 계산을 구현하면서 같은 publisher를 위의 최종 30문서 구조로 확장한다.
+단계 순서는 유지한다. 5단계에서는 ETF를 선행 구현하지 않고 20개 club + market state + version만 원자 publish한다. 7단계가 ETF 계산을 구현하면서 같은 publisher를 위의 최종 28문서 구조로 확장한다.
 
 ## 7. ETF 계산
 
@@ -205,7 +205,7 @@ ETF는 해당 `valuationVersion`의 구성 club 가격을 동일 가중으로 �
 
 ## 10. 비용 상한
 
-기본 가격 회차의 수요 읽기는 `22 clubs × 10 shards = 220 shard reads`에 고정된다. 여기에 22개 별점/club 입력, 활성 이벤트 제한 쿼리, 22개 run/club 쓰기, 6개 ETF 투영이 더해진다. 전체 `trades` 스캔이나 사용자별 holdings 스캔은 없다.
+기본 가격 회차의 수요 읽기는 `20 clubs × 10 shards = 200 shard reads`에 고정된다. 여기에 20개 별점/club 입력, 활성 이벤트 제한 쿼리, 20개 run/club 쓰기, 6개 ETF 투영이 더해진다. 전체 `trades` 스캔이나 사용자별 holdings 스캔은 없다.
 
 운영 전 개장 분을 곱해 가격 엔진 read/write 예산을 산정하고 무료/유료 한도와 별도로 경보를 둔다. 이벤트 쿼리는 시간·상태·대상 수를 제한하고, price run과 닫힌 창의 보존/TTL은 감사 기간 확정 뒤 적용한다.
 
@@ -233,16 +233,16 @@ ETF는 해당 `valuationVersion`의 구성 club 가격을 동일 가중으로 �
 - 창 회전과 동시에 들어온 거래가 구/신 창에 중복·누락되지 않음
 - 같은 스케줄 호출·run 동시 실행이 가격 한 번만 반영
 - club 한 개 실패 후 재시도로 ETF가 혼합 회차를 공개하지 않음
-- publish 직전/중단/충돌에서 22 clubs의 `lastPriceWindowId`와 6 ETFs의 `valuationVersion`이 전부 이전 또는 전부 새 회차이고 혼합되지 않음
+- publish 직전/중단/충돌에서 20 clubs의 `lastPriceWindowId`와 6 ETFs의 `valuationVersion`이 전부 이전 또는 전부 새 회차이고 혼합되지 않음
 - 가격 갱신과 거래 동시 실행 시 최신 서버 가격으로 원자 체결
 - 시장 halt/closed cutoff와 거래 경합에서 정지 후 신규 commit 없음
 - 120초 stale 시 체결 거부, 복구 후 명시적 재개
-- 공식 22개 모두 동일 설정, ETF 6개 전체 구성 정확성
+- 공식 20개 모두 동일 설정, ETF 6개 전체 구성 정확성
 
 ### 부하·운영
 
 - 수백 명이 한 종목에 동시에 매수/매도할 때 transaction retry, p50/p95/p99, 오류율, 샤드 편중
-- 22개 종목 동시 수요에서 회차가 120초 안에 끝나는지
+- 20개 종목 동시 수요에서 회차가 120초 안에 끝나는지
 - 예상 축제 시간 전체의 Firestore 읽기·쓰기와 Functions 호출 비용
 - 함수 kill/timeout, 중복 전달, 네트워크 단절, lease 만료 후 안전한 재개
 

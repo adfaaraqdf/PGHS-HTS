@@ -41,7 +41,7 @@ Before running a command, confirm it exists in the relevant `package.json`. Use 
 - Keep shared constants and tunable market coefficients in validated configuration, not duplicated per club or scattered across client files.
 - Prefer small modules with explicit input validation, stable error codes, and deterministic behavior. Release Firestore listeners when a screen is hidden or disposed.
 - Treat `docs/DATA_CONTRACTS.md` and `docs/FIRESTORE_SCHEMA.md` as contracts. Update affected documents and tests in the same task when an approved design changes.
-- Official catalog data is exactly 22 clubs and 6 ETFs. Aliases are search metadata, never additional securities.
+- Official catalog data is exactly 20 clubs and 6 ETFs. Aliases are search metadata, never additional securities.
 
 ## Firebase security principles
 

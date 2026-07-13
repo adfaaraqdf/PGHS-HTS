@@ -33,7 +33,7 @@
 | `marketDemand/{clubId}/windows/{windowId}` | 종목·회차 수요 메타 | 클라이언트 접근 금지 |
 | `marketDemand/{clubId}/windows/{windowId}/shards/{shardId}` | 10개 고정 수요 샤드 | 클라이언트 접근 금지 |
 | `priceRuns/{windowId_clubId}` | 가격 회차 결과·idempotency | 클라이언트 접근 금지 |
-| `priceVersions/{windowId}` | 22종목 원자 publish barrier | 클라이언트 접근 금지 |
+| `priceVersions/{windowId}` | 20종목 원자 publish barrier | 클라이언트 접근 금지 |
 | `rateLimits/{uid}/windows/{command_window}` | 사용자·명령별 호출 제한 | 클라이언트 접근 금지 |
 | `serviceLeases/{leaseId}` | 가격·랭킹·폐장 fencing lease | 클라이언트 접근 금지 |
 | `adminAuthorizations/{uid}`, `adminApprovals/{approvalId}` | 실시간 역할·2인 승인 | 클라이언트 접근 금지 |
@@ -160,7 +160,7 @@
 | 필드 | 타입 | 제약/의미 |
 |---|---|---|
 | `schemaVersion` | integer | 양수 |
-| `id` | string | 문서 ID와 동일, 공식 22개 중 하나 |
+| `id` | string | 문서 ID와 동일, 공식 20개 중 하나 |
 | `displayName` | string | 공식 명칭 |
 | `aliases` | array<string> | bounded 별칭; 별도 종목 생성 금지 |
 | `category`, `description` | string | 공식 카탈로그 값 |
@@ -188,7 +188,7 @@
 | `priceCalculatedAt` | Timestamp | 가격 freshness의 유일 기준; 가격 publish만 갱신 |
 | `createdAt`, `updatedAt` | Timestamp | 일반 서버 시각; freshness 판정에 사용하지 않음 |
 
-22개 모두 같은 `market/config`의 초기값으로 seed한다. `Re/리켐`, `invelix/인벨릭스`, `neon/네온`은 각각 한 문서의 별칭이다.
+20개 모두 같은 `market/config`의 초기값으로 seed한다. `Re:chem/리켐`, `invelix/인벨릭스`, `neon/네온`은 각각 한 문서의 별칭이다.
 
 ### `ratings/{clubId}`
 
@@ -263,8 +263,8 @@
 
 ### 원자 가격 publish와 내부 제어 문서
 
-- `priceVersions/{windowId}`: `status`(`computing|ready|published|failed`), `completedClubCount`, `configVersion`, `sourceWindowId`, `inputDigest`, `publishedAt`, `schemaVersion`. 22개 `priceRuns`가 완료되기 전에는 ready가 될 수 없다.
-- 5단계 pre-ETF publish transaction은 알려진 22개 run과 이전 version을 확인한 뒤 22개 `clubs`, `market/state.currentPriceWindowId`, version 상태를 한 번에 커밋한다. 7단계 최종 프로토콜은 ETF 후보 6개를 추가해 총 30개 문서를 함께 커밋한다. 회차 계산은 transaction 밖에서 하지만 해당 단계에서 공개되는 가격은 혼합 회차가 되지 않는다.
+- `priceVersions/{windowId}`: `status`(`computing|ready|published|failed`), `completedClubCount`, `configVersion`, `sourceWindowId`, `inputDigest`, `publishedAt`, `schemaVersion`. 20개 `priceRuns`가 완료되기 전에는 ready가 될 수 없다.
+- 5단계 pre-ETF publish transaction은 알려진 20개 run과 이전 version을 확인한 뒤 20개 `clubs`, `market/state.currentPriceWindowId`, version 상태를 한 번에 커밋한다. 7단계 최종 프로토콜은 ETF 후보 6개를 추가해 총 28개 문서를 함께 커밋한다. 회차 계산은 transaction 밖에서 하지만 해당 단계에서 공개되는 가격은 혼합 회차가 되지 않는다.
 - `serviceLeases/{leaseId}`: `purpose`, `owner`, 증가하는 `fencingToken`, `leaseExpiresAt`, `updatedAt`, `schemaVersion`.
 - `rateLimits/{uid}/windows/{command_window}`: `command`, `count`, `windowStartedAt`, `expiresAt`, `schemaVersion`.
 
@@ -301,7 +301,7 @@
 - 가격·돈·수량·거래량은 정수이고 가격은 최소 100원이다.
 - 거래 한 건의 사용자 자산, 개인 이력, 전역 원장, idempotency 결과, 수요 샤드 증가는 함께 성공하거나 함께 실패한다.
 - `marketCap = currentPrice × issuedShares`, `totalVolume = buyVolume + sellVolume`이다.
-- 클럽 22개는 동일 초기 가격·기준가·발행량·시총·거래량·계수를 사용한다.
-- ETF 6개 구성의 합집합은 공식 club ID 22개와 같고 교집합 중복은 없다.
+- 클럽 20개는 동일 초기 가격·기준가·발행량·시총·거래량·계수를 사용한다.
+- ETF 6개 구성의 합집합은 공식 club ID 20개와 같고 교집합 중복은 없다.
 - 공개 TOP 10에는 UID, 이메일, `displayName`, 현금, holdings, 내부 tie key가 없다.
 - 관리자/서버 생성 문서는 일반 클라이언트가 생성·수정·삭제할 수 없다.

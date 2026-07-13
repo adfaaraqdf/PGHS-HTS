@@ -37,7 +37,7 @@ function assert(condition, message) {
 export function validateOfficialCatalogs(clubs, etfs) {
   assert(Array.isArray(clubs), '동아리 정본은 배열이어야 합니다.');
   assert(Array.isArray(etfs), 'ETF 정본은 배열이어야 합니다.');
-  assert(clubs.length === 22, `공식 동아리는 정확히 22개여야 합니다. 현재 ${clubs.length}개입니다.`);
+  assert(clubs.length === 20, `공식 동아리는 정확히 20개여야 합니다. 현재 ${clubs.length}개입니다.`);
   assert(etfs.length === 6, `공식 ETF는 정확히 6개여야 합니다. 현재 ${etfs.length}개입니다.`);
 
   const clubIds = new Set();
@@ -80,8 +80,8 @@ export function validateOfficialCatalogs(clubs, etfs) {
   }
 
   const assignedIds = etfs.flatMap((etf) => etf.componentClubIds);
-  assert(assignedIds.length === 22, `ETF 구성 종목 합계는 22개여야 합니다. 현재 ${assignedIds.length}개입니다.`);
-  assert(new Set(assignedIds).size === 22, '동아리가 여러 ETF에 중복 편입되었습니다.');
+  assert(assignedIds.length === 20, `ETF 구성 종목 합계는 20개여야 합니다. 현재 ${assignedIds.length}개입니다.`);
+  assert(new Set(assignedIds).size === 20, '동아리가 여러 ETF에 중복 편입되었습니다.');
 
   for (const assignedId of assignedIds) {
     assert(clubIds.has(assignedId), `ETF가 알 수 없는 동아리를 참조합니다: ${assignedId}`);

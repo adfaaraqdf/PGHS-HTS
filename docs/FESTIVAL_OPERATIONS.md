@@ -37,7 +37,7 @@
 
 - U-001~U-019 운영 필수 결정을 닫고 개인정보 안내·시상·별점 제출 경로를 학교가 승인한다.
 - production project/region/billing/domain/Auth/App Check/IAM/예산 경보를 검증한다.
-- 정본 clubs 22/ETFs 6, 실제 선택 콘텐츠, 별점 adapter를 staging에서 검증한다.
+- 정본 clubs 20/ETFs 6, 실제 선택 콘텐츠, 별점 adapter를 staging에서 검증한다.
 - 예상 peak 1.5배 부하, hotspot, 보안, 비용, 폐장·rollback·App Check 오차단 훈련을 마친다.
 - 관리자 개인 계정과 역할을 발급하고 예비 관리자의 claim 회수·재발급을 시험한다.
 

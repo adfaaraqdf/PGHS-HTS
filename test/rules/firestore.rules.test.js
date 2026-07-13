@@ -113,7 +113,7 @@ describe('허용된 최소 읽기', () => {
   test('활성 학교 사용자는 자기 계정과 bounded 공개 projection을 읽는다', async () => {
     const database = verifiedDatabase();
     await assertSucceeds(getDoc(doc(database, 'users/user-a')));
-    await assertSucceeds(getDocs(query(collection(database, 'clubs'), limit(22))));
+    await assertSucceeds(getDocs(query(collection(database, 'clubs'), limit(20))));
     await assertSucceeds(getDocs(query(collection(database, 'users/user-a/tradeHistory'), limit(50))));
     await assertSucceeds(getDoc(doc(database, 'publicLeaderboard/current')));
   });

@@ -10,20 +10,22 @@ import { parseSeedArguments } from '../../scripts/seed-firestore.js';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-test('문서 정본은 동아리 22개와 ETF 6개를 중복 없이 정의한다', async () => {
+test('문서 정본은 동아리 20개와 ETF 6개를 중복 없이 정의한다', async () => {
   const { clubs, etfs, validation } = await loadOfficialCatalogs(repositoryRoot);
-  assert.deepEqual(validation, { clubCount: 22, etfCount: 6, componentCount: 22 });
-  assert.equal(new Set(clubs.map(({ id }) => id)).size, 22);
+  assert.deepEqual(validation, { clubCount: 20, etfCount: 6, componentCount: 20 });
+  assert.equal(new Set(clubs.map(({ id }) => id)).size, 20);
   assert.equal(new Set(etfs.map(({ id }) => id)).size, 6);
-  assert.equal(new Set(etfs.flatMap(({ componentClubIds }) => componentClubIds)).size, 22);
+  assert.equal(new Set(etfs.flatMap(({ componentClubIds }) => componentClubIds)).size, 20);
 });
 
 test('Re, invelix, neon의 한글 명칭은 별도 종목이 아니라 alias다', async () => {
   const { clubs } = await loadOfficialCatalogs(repositoryRoot);
+  assert.equal(clubs.find(({ id }) => id === 'rechem').displayName, 'Re:chem');
   assert.deepEqual(clubs.find(({ id }) => id === 'rechem').aliases, ['리켐']);
   assert.deepEqual(clubs.find(({ id }) => id === 'invelix').aliases, ['인벨릭스']);
   assert.deepEqual(clubs.find(({ id }) => id === 'neon').aliases, ['네온']);
   assert.equal(clubs.some(({ id }) => ['리켐', '인벨릭스', '네온'].includes(id)), false);
+  assert.equal(clubs.some(({ id }) => ['geonetics', 'agora'].includes(id)), false);
 });
 
 test('모든 동아리는 한 ETF에 한 번만 편입되고 스포츠 ETF는 배구사랑 하나다', async () => {
@@ -34,13 +36,13 @@ test('모든 동아리는 한 ETF에 한 번만 편입되고 스포츠 ETF는 �
   assert.deepEqual(etfs.find(({ id }) => id === 'etf-sports').componentClubIds, ['volleyball-love']);
 });
 
-test('시드는 52개 문서와 완전히 동일한 초기 시장 조건을 만든다', async () => {
+test('시드는 48개 문서와 완전히 동일한 초기 시장 조건을 만든다', async () => {
   const { clubs, etfs } = await loadOfficialCatalogs(repositoryRoot);
   const documents = buildSeedDocuments({ clubs, etfs, now: new Date(0) });
   const clubDocuments = documents.filter(({ kind }) => kind === 'clubs');
   const etfDocuments = documents.filter(({ kind }) => kind === 'etfs');
-  assert.equal(documents.length, 52);
-  assert.equal(clubDocuments.length, 22);
+  assert.equal(documents.length, 48);
+  assert.equal(clubDocuments.length, 20);
   assert.equal(etfDocuments.length, 6);
 
   for (const { data } of clubDocuments) {
@@ -64,8 +66,8 @@ test('재실행은 중복을 만들지 않고 --force 없이는 기존 문서를
   const documents = buildSeedDocuments({ clubs, etfs, now: new Date(0) });
   const firstRun = createSeedPlan(documents, []);
   const secondRun = createSeedPlan(documents, documents.map(({ path: documentPath }) => documentPath));
-  assert.deepEqual(firstRun.counts, { created: 52, skipped: 0, updated: 0, failed: 0 });
-  assert.deepEqual(secondRun.counts, { created: 0, skipped: 52, updated: 0, failed: 0 });
+  assert.deepEqual(firstRun.counts, { created: 48, skipped: 0, updated: 0, failed: 0 });
+  assert.deepEqual(secondRun.counts, { created: 0, skipped: 48, updated: 0, failed: 0 });
   assert.equal(secondRun.operations.length, 0);
 });
 
@@ -73,7 +75,7 @@ test('--force도 가격, 거래량, rating, market state를 갱신하지 않는�
   const { clubs, etfs } = await loadOfficialCatalogs(repositoryRoot);
   const documents = buildSeedDocuments({ clubs, etfs, now: new Date(0) });
   const plan = createSeedPlan(documents, documents.map(({ path: documentPath }) => documentPath), { force: true });
-  assert.deepEqual(plan.counts, { created: 0, skipped: 23, updated: 29, failed: 0 });
+  assert.deepEqual(plan.counts, { created: 0, skipped: 21, updated: 27, failed: 0 });
 
   const clubUpdate = forceUpdateFor(documents.find(({ kind }) => kind === 'clubs'));
   for (const protectedField of ['currentPrice', 'buyVolume', 'sellVolume', 'totalVolume', 'isActive', 'tradingStatus']) {
@@ -105,7 +107,7 @@ test('운영 시드는 프로젝트 ID를 동일하게 재확인해야 한다', 
 
 test('잘못된 ETF 편입과 정본 개수는 시드 전에 실패한다', async () => {
   const { clubs, etfs } = await loadOfficialCatalogs(repositoryRoot);
-  assert.throws(() => validateOfficialCatalogs(clubs.slice(1), etfs), /정확히 22개/);
+  assert.throws(() => validateOfficialCatalogs(clubs.slice(1), etfs), /정확히 20개/);
   const invalidEtfs = JSON.parse(JSON.stringify(etfs));
   invalidEtfs[0].componentClubIds[0] = invalidEtfs[1].componentClubIds[0];
   assert.throws(() => validateOfficialCatalogs(clubs, invalidEtfs), /중복 편입/);

@@ -183,14 +183,14 @@ export function buildSeedDocuments({ clubs, etfs, now = new Date() }) {
 
 export function validateSeedDocuments(documents, clubs, etfs) {
   const paths = documents.map(({ path }) => path);
-  assert(paths.length === 52, `시드 문서는 52개여야 합니다. 현재 ${paths.length}개입니다.`);
+  assert(paths.length === 48, `시드 문서는 48개여야 합니다. 현재 ${paths.length}개입니다.`);
   assert(new Set(paths).size === paths.length, '시드 문서 경로가 중복되었습니다.');
 
   const clubDocuments = documents.filter(({ kind }) => kind === 'clubs');
   const ratingDocuments = documents.filter(({ kind }) => kind === 'ratings');
   const etfDocuments = documents.filter(({ kind }) => kind === 'etfs');
-  assert(clubDocuments.length === 22 && clubs.length === 22, '동아리 시드는 정확히 22개여야 합니다.');
-  assert(ratingDocuments.length === 22, '별점 초기 projection은 동아리별로 22개여야 합니다.');
+  assert(clubDocuments.length === 20 && clubs.length === 20, '동아리 시드는 정확히 20개여야 합니다.');
+  assert(ratingDocuments.length === 20, '별점 초기 projection은 동아리별로 20개여야 합니다.');
   assert(etfDocuments.length === 6 && etfs.length === 6, 'ETF 시드는 정확히 6개여야 합니다.');
 
   const initialSignatures = new Set(clubDocuments.map(({ data }) => JSON.stringify({
