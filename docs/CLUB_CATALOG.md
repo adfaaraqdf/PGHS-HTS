@@ -2,10 +2,10 @@
 
 ## 정본 규칙
 
-- 이 문서의 `officialClubCatalog`가 공식 종목 정본이다. 개수는 **정확히 22개**이며 가상의 종목을 추가하지 않는다.
+- 이 문서의 `officialClubCatalog`가 공식 종목 정본이다. 개수는 **정확히 20개**이며 가상의 종목을 추가하지 않는다.
 - `id`는 Firestore 문서 ID이자 영구 식별자다. 표시명 변경이 필요해도 ID를 재사용하거나 임의 변경하지 않는다.
 - `displayName`, `aliases`, `category`, `description`, `etfId`는 제공된 원문을 그대로 유지한다.
-- `aliases`는 검색·표시 보조값일 뿐 별도 종목이 아니다. `Re`와 `리켐`, `invelix`와 `인벨릭스`, `neon`과 `네온`은 각각 동일 종목이다.
+- `aliases`는 검색·표시 보조값일 뿐 별도 종목이 아니다. `Re:chem`과 `리켐`, `invelix`와 `인벨릭스`, `neon`과 `네온`은 각각 동일 종목이다.
 - 검색 토큰은 Unicode NFC 정규화, 앞뒤 공백 제거, 영문 대소문자 무시를 적용할 수 있다. 서로 다른 동아리 사이에서 정규화된 ID·표시명·별칭이 충돌하면 시드를 중단한다.
 - ETF 구성의 정본은 `ETF_STRUCTURE.md`이며, 아래 `etfId`와 양방향으로 일치해야 한다.
 
@@ -47,7 +47,7 @@
   },
   {
     "id": "rechem",
-    "displayName": "Re",
+    "displayName": "Re:chem",
     "aliases": ["리켐"],
     "category": "화학",
     "description": "일상 속 현상을 화학 원리로 탐구하고 실험·토론하는 동아리",
@@ -172,22 +172,6 @@
     "category": "공학 프로젝트",
     "description": "환경, 에너지, 로봇, 소프트웨어 등 자유 주제로 공학 프로젝트를 진행하는 동아리",
     "etfId": "etf-tech-engineering"
-  },
-  {
-    "id": "geonetics",
-    "displayName": "지오네틱스",
-    "aliases": [],
-    "category": "지구과학",
-    "description": "판 구조, 대기와 해양, 우주 등을 탐구하는 지구과학 동아리",
-    "etfId": "etf-natural-science"
-  },
-  {
-    "id": "agora",
-    "displayName": "아고라",
-    "aliases": [],
-    "category": "토론",
-    "description": "윤리, 교육, 경영, 경제, 환경, 과학 등 다양한 주제로 토론하는 동아리",
-    "etfId": "etf-humanities-social"
   }
 ]
 ```
@@ -218,7 +202,7 @@
 
 ## 자동 검증 불변 조건
 
-1. 배열 길이와 서로 다른 `id` 수가 모두 22다.
+1. 배열 길이와 서로 다른 `id` 수가 모두 20이다.
 2. 모든 `id`는 소문자 kebab-case이며 `/`를 포함하지 않는다.
 3. `displayName`, `category`, `description`, `etfId`는 비어 있지 않고 `aliases`는 문자열 배열이다.
 4. 정규화된 검색 토큰 충돌은 같은 club ID 내부에서만 허용된다.

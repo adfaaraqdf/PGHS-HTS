@@ -11,7 +11,7 @@
 - 클라이언트는 현금, 보유, 원장, 가격, 거래량, 별점, ETF, 랭킹, 시장 상태, 감사 로그를 권위 있게 쓸 수 없다.
 - 다른 사용자의 private 자산, 공개 랭킹의 이메일·UID·실명은 노출되지 않는다.
 - 가격은 정수·100원 이상·tick당 ±200bp 이내이고 동일 입력은 동일 결과다.
-- 공식 종목은 정확히 22개, ETF는 6개이며 모든 종목은 정확히 한 ETF에 한 번만 속한다.
+- 공식 종목은 정확히 20개, ETF는 6개이며 모든 종목은 정확히 한 ETF에 한 번만 속한다.
 - 가격과 랭킹 자료의 최대 age는 각각 120초다. 초과하면 성공처럼 보이지 않고 stale/장애 상태가 표시된다.
 - 비활성 화면 listener가 남지 않고 전체 users/trades를 무제한 구독하지 않는다.
 
@@ -31,14 +31,14 @@
 
 | 단계 | 필수 게이트 |
 | --- | --- |
-| 0 | 14개 문서, 요구 추적, 22/6 관계, 미결정값, 모순·범위 확대 없음 |
+| 0 | 14개 문서, 요구 추적, 20/6 관계, 미결정값, 모순·범위 확대 없음 |
 | 1 | clean install, lint/unit/build, Functions 검사, Emulator 기동, 360px·환경 fail-fast·secret scan |
 | 2 | 허용/거부 로그인, email verified, 동시 initialize, 초기 현금 1회, logout/token 만료, nickname |
-| 3 | 전체 Rules negative matrix, index query, seed 22/6·dry-run·idempotent·non-force 보호 |
+| 3 | 전체 Rules negative matrix, index query, seed 20/6·dry-run·idempotent·non-force 보호 |
 | 4 | 거래 단위·통합·동시성·응답 유실·halt race, 원장 reconciliation |
-| 5 | 가격 golden/property/simulation, 22-club 원자 publish, 중복 tick, hotspot, 60초/120초 age; ETF는 미구현 |
+| 5 | 가격 golden/property/simulation, 20-club 원자 publish, 중복 tick, hotspot, 60초/120초 age; ETF는 미구현 |
 | 6 | 핵심 모바일 E2E, 접근성, loading/empty/error/retry/offline, listener 해제 |
-| 7 | 6 ETF/22 구성, 동일 가중·반올림, club+ETF 동일 회차 publish, 스포츠 단일종목, ETF 거래 부재 |
+| 7 | 6 ETF/20 구성, 동일 가중·반올림, club+ETF 동일 회차 publish, 스포츠 단일종목, ETF 거래 부재 |
 | 8 | competition rank, TOP payload 10명, own rank, 개인정보 부재, 60초/120초 age |
 | 9 | role/claim 위조, halt race, 이벤트 상한, 감사 로그, 초기화 보호 |
 | 10 | 공급자 contract/signature/replay/reconcile/stale/fallback |
@@ -49,10 +49,10 @@
 
 필수 assertion은 다음과 같다.
 
-1. club 배열 길이와 고유 ID 수가 모두 22다.
+1. club 배열 길이와 고유 ID 수가 모두 20다.
 2. ETF 배열 길이와 고유 ID 수가 모두 6이다.
 3. 모든 club의 `etfId`가 실제 ETF를 가리킨다.
-4. 모든 `componentClubIds`가 실제 club ID이고 flatten 결과가 22개·고유 22개다.
+4. 모든 `componentClubIds`가 실제 club ID이고 flatten 결과가 20개·고유 20개다.
 5. club의 `etfId`와 ETF 역방향 구성 관계가 완전히 일치한다.
 6. `리켐`, `인벨릭스`, `네온`은 각각 `rechem`, `invelix`, `neon`의 alias이고 별도 ID가 아니다.
 7. 모든 club의 초기/기준/전일 가격은 10,000원, 발행량 100,000주, 시총 10억원, 초기 거래량 0으로 같다.
@@ -116,7 +116,7 @@ Admin SDK가 Rules를 우회한다는 사실 때문에 Rules 통과만으로 서
 - 100원 최저가와 원 단위 반올림에서 음의 rating/admin target 시작·종료가 비대칭 이익을 만들지 않고, 상한 밖 target은 여러 tick에 걸쳐 결정적으로 수렴하며 숨은 음수 carry를 쌓지 않는지 검증한다.
 - 별점 count 0은 저장상 3.0/표시상 '평가 없음'/엔진 prior 3.0·20건으로 중립이다. 1건 극단값과 20/100건 변화의 단조성·상한을 검사한다.
 - 개발 기본 freshness는 lastRatingAt 이후 10분까지 정상, 10~30분 선형 감쇠, 30분에 최근 기여 0인지를 검증하되 운영 승인 변경 시 fixture를 함께 바꾼다.
-- 동일 tick/window 중복 scheduler delivery, fencing lease 만료, 닫히지 않은 window, 샤드 일부 누락, candidate 계산 중단, 22-club 원자 publish 충돌을 fault injection한다. publish 전·실패 중에는 모든 club `lastPriceWindowId`와 ETF `valuationVersion`이 이전 회차인지 확인한다.
+- 동일 tick/window 중복 scheduler delivery, fencing lease 만료, 닫히지 않은 window, 샤드 일부 누락, candidate 계산 중단, 20-club 원자 publish 충돌을 fault injection한다. publish 전·실패 중에는 모든 club `lastPriceWindowId`와 ETF `valuationVersion`이 이전 회차인지 확인한다.
 - 60초 목표와 120초 최대 age를 staging에서 측정하고 초과 시 stale alert/UI가 작동하는지 본다.
 - 거래의 freshness 검사는 오직 `clubs.priceCalculatedAt`을 사용한다. description/rating/tradingStatus 변경으로 일반 `updatedAt`만 새로워져도 오래된 가격 거래가 계속 거부되는 회귀 테스트를 둔다.
 - 종목 순서·인기·이름과 무관하게 같은 config가 적용되고 전체 trade scan이 발생하지 않는지 operation trace로 확인한다.
@@ -134,7 +134,7 @@ ETF는 각 구성 가격의 동일 가중 평균과 정수 반올림을 독립 o
 - 상승/하락은 색뿐 아니라 부호·아이콘·문구로 구분하고 dark mode 대비를 자동/수동 검사한다.
 - 모든 화면은 loading, empty, error, retry, offline, stale 상태 fixture를 갖고 double submit을 막는다.
 - route 이동 100회 뒤 활성 listener 수가 baseline으로 돌아오며 hidden tab/로그아웃에서 private listener가 해제된다.
-- 홈·시장·상세·ETF·자산·랭킹별 initial reads와 분당 reads를 계측한다. 22 clubs·TOP10·최근 news 등 명시 limit보다 넓은 query는 실패시킨다.
+- 홈·시장·상세·ETF·자산·랭킹별 initial reads와 분당 reads를 계측한다. 20 clubs·TOP10·최근 news 등 명시 limit보다 넓은 query는 실패시킨다.
 - XSS payload를 nickname/news/description/search에 넣고 text rendering과 CSP를 검증한다.
 
 ## 11. 관리자·별점·폐장 테스트
@@ -176,4 +176,4 @@ ETF는 각 구성 가격의 동일 가중 평균과 정수 반올림을 독립 o
 
 ## 14. 최종 Go/No-Go
 
-다음 중 하나라도 참이면 No-Go다: 자산/가격 불변식 위반, 차단 보안 결함, 공식 22/6 불일치, placeholder 운영값, 폐장·rollback 미리허설, 120초 stale 상한 위반, 예산 미승인, 담당자 부재, actual domain/App Check staging 실패. 모든 결과와 알려진 비차단 위험을 승인자가 확인한 경우에만 배포 후보가 된다.
+다음 중 하나라도 참이면 No-Go다: 자산/가격 불변식 위반, 차단 보안 결함, 공식 20/6 불일치, placeholder 운영값, 폐장·rollback 미리허설, 120초 stale 상한 위반, 예산 미승인, 담당자 부재, actual domain/App Check staging 실패. 모든 결과와 알려진 비차단 위험을 승인자가 확인한 경우에만 배포 후보가 된다.

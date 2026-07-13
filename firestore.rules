@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isVerifiedSchoolUser() {
+      return request.auth != null
+        && request.auth.token.schoolVerified == true;
+    }
+
+    function isActiveUser(uid) {
+      return isVerifiedSchoolUser()
+        && exists(/databases/$(database)/documents/users/$(uid))
+        && get(/databases/$(database)/documents/users/$(uid)).data.accountStatus == 'active';
+    }
+
+    function isActiveSelf() {
+      return request.auth != null && isActiveUser(request.auth.uid);
+    }
+
+    function boundedList(maximum) {
+      return request.query.limit != null && request.query.limit <= maximum;
+    }
+
+    match /users/{uid} {
+      allow get: if isVerifiedSchoolUser()
+        && request.auth.uid == uid
+        && resource.data.accountStatus == 'active';
+      allow list, create, update, delete: if false;
+
+      match /holdings/{clubId} {
+        allow get: if request.auth != null
+          && request.auth.uid == uid
+          && isActiveUser(uid);
+        allow list: if request.auth != null
+          && request.auth.uid == uid
+          && isActiveUser(uid)
+          && boundedList(20);
+        allow create, update, delete: if false;
+      }
+
+      match /tradeHistory/{tradeId} {
+        allow get: if request.auth != null
+          && request.auth.uid == uid
+          && isActiveUser(uid);
+        allow list: if request.auth != null
+          && request.auth.uid == uid
+          && isActiveUser(uid)
+          && boundedList(50);
+        allow create, update, delete: if false;
+      }
+    }
+
+    // UID-keyed profile sources stay server-only. Public clients consume only
+    // bounded projections such as publicLeaderboard/current.
+    match /publicProfiles/{uid} {
+      allow read, write: if false;
+    }
+
+    match /clubs/{clubId} {
+      allow get: if isActiveSelf();
+      allow list: if isActiveSelf() && boundedList(20);
+      allow create, update, delete: if false;
+    }
+
+    match /etfs/{etfId} {
+      allow get: if isActiveSelf();
+      allow list: if isActiveSelf() && boundedList(6);
+      allow create, update, delete: if false;
+    }
+
+    match /ratings/{clubId} {
+      allow get: if isActiveSelf();
+      allow list: if isActiveSelf() && boundedList(20);
+      allow create, update, delete: if false;
+    }
+
+    match /news/{newsId} {
+      allow get: if isActiveSelf()
+        && resource.data.isPublished == true
+        && resource.data.publishedAt <= request.time
+        && (resource.data.expiresAt == null || resource.data.expiresAt > request.time);
+      allow list: if isActiveSelf()
+        && boundedList(20)
+        && resource.data.isPublished == true
+        && resource.data.publishedAt <= request.time
+        && (resource.data.expiresAt == null || resource.data.expiresAt > request.time);
+      allow create, update, delete: if false;
+    }
+
+    match /adminEvents/{eventId} {
+      allow get: if isActiveSelf() && resource.data.status == 'active';
+      allow list: if isActiveSelf()
+        && boundedList(20)
+        && resource.data.status == 'active';
+      allow create, update, delete: if false;
+    }
+
+    match /publicLeaderboard/current {
+      allow get: if isActiveSelf();
+      allow list, create, update, delete: if false;
+    }
+
+    match /market/{documentId} {
+      allow get: if isActiveSelf() && documentId in ['config', 'state'];
+      allow list, create, update, delete: if false;
+    }
+
+    // Authoritative, private, aggregate, authorization, and audit data is
+    // reachable only through validated server code using the Admin SDK.
+    match /trades/{document=**} { allow read, write: if false; }
+    match /tradeRequests/{document=**} { allow read, write: if false; }
+    match /auditLogs/{document=**} { allow read, write: if false; }
+    match /leaderboardEntries/{document=**} { allow read, write: if false; }
+    match /marketDemand/{document=**} { allow read, write: if false; }
+    match /priceRuns/{document=**} { allow read, write: if false; }
+    match /priceVersions/{document=**} { allow read, write: if false; }
+    match /rateLimits/{document=**} { allow read, write: if false; }
+    match /serviceLeases/{document=**} { allow read, write: if false; }
+    match /adminAuthorizations/{document=**} { allow read, write: if false; }
+    match /adminApprovals/{document=**} { allow read, write: if false; }
+    match /closureRuns/{document=**} { allow read, write: if false; }
+    match /finalMarketSnapshots/{document=**} { allow read, write: if false; }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

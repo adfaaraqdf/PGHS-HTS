@@ -20,7 +20,7 @@
 다음이 하나라도 placeholder면 production No-Go다.
 
 - 개발·staging·production project ID, 결제 계정, Firestore 위치, Functions region
-- `ALLOWED_SCHOOL_DOMAIN`, 실제 Auth authorized domain, Hosting domain
+- `ALLOWED_SCHOOL_DOMAIN=pangyo.hs.kr`, 실제 Auth authorized domain, Hosting domain
 - 관리자 이메일·역할·claim 발급/회수 담당자, 비상 연락망
 - `FESTIVAL_TIMEZONE`, 축제 날짜, 개장·폐장 시각
 - App Check 공급자·site key·enforcement 계획
@@ -50,7 +50,7 @@
 ## 6. 사전 검증
 
 1. clean checkout에서 lockfile 기반 install, lint, unit, Rules/Emulator/integration/E2E, production build를 실행한다.
-2. 22 clubs/6 ETFs/구성 합계 22/공통 초기값/alias를 검증한다.
+2. 20 clubs/6 ETFs/구성 합계 20/공통 초기값/alias를 검증한다.
 3. secret·dependency·license·번들 environment scan을 통과한다.
 4. staging에서 실제 Auth redirect, 허용/거부 도메인, App Check monitor, indexes ready, scheduler 60초/최대 120초, 거래·halt·폐장 smoke를 확인한다.
 5. `TEST_PLAN.md` 부하·reconciliation·비용·복구 gate와 `FESTIVAL_OPERATIONS.md` tabletop/리허설을 통과한다.
@@ -65,7 +65,7 @@
 3. additive Firestore indexes를 배포하고 모두 `READY`가 될 때까지 기다린다.
 4. deny-by-default Rules를 배포하고 deployed Rules smoke를 실행한다.
 5. Cloud Functions를 배포한다. scheduler는 중복 전달에 멱등이고 개장 전 `status=closed`에서는 위험한 시장 쓰기를 하지 않아야 한다.
-6. 공식 seed `--dry-run` 결과가 create 22 clubs/6 ETFs/market config·state와 일치하는지 검토한다. production은 별도 확인 뒤 non-force 실행하고 재실행이 전부 skip인지 확인한다.
+6. 공식 seed `--dry-run` 결과가 create 20 clubs/6 ETFs/market config·state와 일치하는지 검토한다. production은 별도 확인 뒤 non-force 실행하고 재실행이 전부 skip인지 확인한다.
 7. Hosting preview/channel에 build artifact를 배포해 모바일·Auth·callable·read smoke를 수행한다.
 8. App Check를 monitor 상태로 관찰하고 합법 traffic이 정상임을 확인한 뒤 개장 전에 enforcement를 승인한다.
 9. 같은 artifact를 production Hosting에 승격한다. cache/version 혼선을 검사하고 smoke 계정으로 로그인→조회→관리자 halt 상태를 확인한다.
@@ -77,7 +77,7 @@
 
 - release/version/config/catalog hash가 승인본과 같다.
 - 허용 계정 로그인과 외부 도메인 거부, 최초 자금 1회가 맞다.
-- clubs 22, ETFs 6, TOP/news bounded query가 성공하고 PII가 없다.
+- clubs 20, ETFs 6, TOP/news bounded query가 성공하고 PII가 없다.
 - market `status=closed`에서 거래는 `market-closed`, 격리된 open test window의 승인 fixture 거래는 원장과 일치해야 한다. production 실제 개장 직전에는 파괴 smoke를 하지 않는다.
 - `clubs.priceCalculatedAt`, `etfs.sourcePriceAsOf`, 공개 랭킹 `updatedAt` age와 scheduler/function error, Rules deny, App Check rejection, read/write rate, 예산 지표가 대시보드에 보인다.
 - 관리자 halt/resume, 감사 로그, emergency claim 회수가 리허설대로 동작한다.
@@ -128,7 +128,7 @@
 - 현재 화면의 bounded listener만 유지하고 숨은 화면·logout에서 해제한다.
 - 전체 trade/user scan을 요청 경로에서 금지하고 집계·TOP10·ETF·랭킹 snapshot을 사용한다.
 - 거래 history는 limit+cursor, news/events는 시간·상태+limit로 조회한다.
-- 가격은 60초당 22종목×10샤드의 상한이 계산 가능하도록 하고 실제 빈 shard 최적화는 계약을 깨지 않는 범위에서 검토한다.
+- 가격은 60초당 20종목×10샤드의 상한이 계산 가능하도록 하고 실제 빈 shard 최적화는 계약을 깨지 않는 범위에서 검토한다.
 - staging operation count를 예상 사용자·행사 시간으로 확장해 당시 공식 Firebase/GCP 계산기로 산정한다. 가격을 문서에 하드코딩하지 않는다.
 - min instances는 기본 0, 부하 시험에서 필요하고 예산 승인이 있을 때만 행사 시간에 제한 적용하며 폐장 후 0으로 돌린다.
 - log sampling·retention을 정하되 audit/security error는 유실하지 않고 PII는 기록하지 않는다.
@@ -136,7 +136,7 @@
 ## 13. 최종 Go/No-Go 체크리스트
 
 - [ ] 운영 placeholder 0개, 승인된 market config·폐장 규칙
-- [ ] 22/6/canonical hash와 seed dry-run·backup 성공
+- [ ] 20/6/canonical hash와 seed dry-run·backup 성공
 - [ ] 전체 테스트·부하·보안·비용 gate 통과, 차단 결함 0
 - [ ] 실제 도메인 Auth와 App Check staging 검증
 - [ ] 관리자 2명 이상, 역할·claim 회수·비상 연락 확인

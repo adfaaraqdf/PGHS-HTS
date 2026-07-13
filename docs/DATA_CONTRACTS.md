@@ -68,7 +68,7 @@ Enum 변경은 클라이언트 fallback과 Rules/Functions 동시 배포를 요�
 
 | 필드 | 타입/제약 |
 |---|---|
-| `clubId` | 문서 ID와 같고 공식 22개 중 하나 |
+| `clubId` | 문서 ID와 같고 공식 20개 중 하나 |
 | `quantity` | 1 이상의 정수; 0이 되면 문서를 삭제하는 정책 |
 | `averageBuyPrice` | 1 이상의 원 단위 정수 |
 | `updatedAt` | 마지막 거래의 서버 Timestamp |
@@ -211,7 +211,7 @@ Callable 오류는 안정된 코드와 사용자에게 안전한 메시지, 선�
 
 ### 6.4 가격 회차와 원자 publish
 
-`priceRuns/{windowId_clubId}`는 한 club의 idempotent 후보 계산으로서 입력 digest, config/window/club ID, 정수 별점·수요·이벤트 snapshot, old/new fundamental, rating/admin target premium, targetPrice, tick 상·하한, 최종 가격, 상태와 단계별 시각을 가진다. `priceVersions/{windowId}`는 `computing|ready|published|failed`, 완료 club 수, config/input digest, publish 시각을 가진 barrier다. 5단계의 pre-ETF 프로토콜은 22개 run 완료 뒤 단일 transaction으로 22개 `clubs`, `market/state.currentPriceWindowId`, version 상태를 함께 갱신한다. 7단계부터 쓰는 최종 프로토콜은 같은 publisher에 ETF 후보 6개를 추가해 22개 `clubs`, 6개 `etfs`, pointer, version을 함께 갱신한다. 어느 프로토콜에서도 계산 중 또는 publish 실패 시 공개 문서는 모두 이전 회차를 유지한다.
+`priceRuns/{windowId_clubId}`는 한 club의 idempotent 후보 계산으로서 입력 digest, config/window/club ID, 정수 별점·수요·이벤트 snapshot, old/new fundamental, rating/admin target premium, targetPrice, tick 상·하한, 최종 가격, 상태와 단계별 시각을 가진다. `priceVersions/{windowId}`는 `computing|ready|published|failed`, 완료 club 수, config/input digest, publish 시각을 가진 barrier다. 5단계의 pre-ETF 프로토콜은 20개 run 완료 뒤 단일 transaction으로 20개 `clubs`, `market/state.currentPriceWindowId`, version 상태를 함께 갱신한다. 7단계부터 쓰는 최종 프로토콜은 같은 publisher에 ETF 후보 6개를 추가해 20개 `clubs`, 6개 `etfs`, pointer, version을 함께 갱신한다. 어느 프로토콜에서도 계산 중 또는 publish 실패 시 공개 문서는 모두 이전 회차를 유지한다.
 
 ## 7. 랭킹 계약
 
@@ -276,7 +276,7 @@ Callable 오류는 안정된 코드와 사용자에게 안전한 메시지, 선�
 - 초기화 함수는 Auth token에서 UID·이름·검증 이메일을 얻고 `ALLOWED_SCHOOL_DOMAIN`을 서버에서 확인한다.
 - 성공 시 `schoolVerified=true` custom claim을 발급하고 token refresh를 요구한다. 이메일은 사용자 문서에 복제하지 않으며 Rules는 환경값 대신 이 claim과 본인/계정 상태를 검사한다.
 - 최초 사용자 생성과 1,000,000원 지급은 멱등·원자적이며 클라이언트가 금액을 보내지 않는다.
-- 공식 시드는 club 22개, ETF 6개, `market/config`, `market/state`, ratings 초기 projection만 만든다.
+- 공식 시드는 club 20개, ETF 6개, `market/config`, `market/state`, ratings 초기 projection만 만든다.
 - 기본 대상은 Emulator다. 운영은 대상 project ID 표시와 명시적 확인이 필요하며 서비스 계정 키를 저장소에 넣지 않는다.
 - 시드는 기본적으로 기존 문서를 덮어쓰지 않는다. `--dry-run`을 지원하고, `--force`일 때도 허용된 정본/설정 필드만 갱신하며 자산·거래·운영 가격을 파괴하지 않는다.
 - 실행 전 카탈로그 ID, 별칭 충돌, ETF 합집합/중복, 공통 초기 조건을 검증하고 생성·건너뜀·갱신·실패 수를 보고한다.
@@ -298,7 +298,7 @@ Callable 오류는 안정된 코드와 사용자에게 안전한 메시지, 선�
 4. 음수·소수·overflow, 가짜 UID/가격/권한/시각, 추가 필드가 거부된다.
 5. 같은 idempotency key 동시 요청, 서로 다른 키 동시 요청, 응답 유실 재호출에서 정확히 한 번의 효과를 검증한다.
 6. 시장/종목 정지와 거래 transaction 경합에서 정지 후 새 체결이 없다.
-7. 22개 club·6개 ETF·22개 구성 합계·별칭 비중복·공통 초기값을 CI에서 검증한다.
+7. 20개 club·6개 ETF·20개 구성 합계·별칭 비중복·공통 초기값을 CI에서 검증한다.
 8. 공개 TOP 10에 UID·이메일·실명·`publicId`가 없고 최대 10개이며 내 순위 접근은 본인으로 제한된다.
 9. `ratingCount=0`에서 UI는 평가 없음, 엔진은 3.0 중립 prior로 처리한다.
 10. 비용 경계를 넘는 무제한 listener, collection scan, 전체 거래 스캔이 없다.
