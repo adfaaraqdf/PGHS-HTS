@@ -40,6 +40,20 @@
 | `closureRuns/{closureId}` | 폐장 멱등 workflow | 클라이언트 접근 금지 |
 | `finalMarketSnapshots/{closureId}` | 불변 최종 결과 | 서버/callable 제한 읽기, 쓰기 금지 |
 
+### 간단한 주식 서비스 모델 대응
+
+아래는 서비스의 핵심을 `stock`, `news`, `holding` 세 모델로 단순화해 본 대응표다. 실제 구현은 Firestore 문서 경로를 관계 키로 사용하므로, `user_id`와 `stock_id`를 여러 필드에 중복 저장하지 않는다.
+
+| 개념 모델 | Firestore 경로 | 최소 필드 | 실제 필드 대응 |
+|---|---|---|---|
+| `stock` | `clubs/{clubId}` | `id`, `name`, `price` | `id`, `displayName`, `currentPrice` |
+| `news` | `news/{newsId}` | `id`, `title`, `content`, `stock_id`, `created_at` | 문서 ID, `title`, `body`, `clubId`, `createdAt` |
+| `holding` | `users/{uid}/holdings/{clubId}` | `id`, `user_id`, `stock_id`, `quantity` | 문서 경로의 `uid`·`clubId`, `clubId`, `quantity` |
+
+- `stock_id`는 이 서비스에서 `clubId`다. 전체 뉴스는 `clubId=null`을 사용한다.
+- holding 문서의 ID는 `clubId`다. 사용자 ID는 상위 경로의 `uid`이므로 별도 `userId` 필드를 만들지 않는다.
+- 실제 종목 문서는 가격·거래량·상태·ETF·별점 같은 모의주식 운영 필드를 추가로 가진다.
+
 ## 3. 사용자와 거래 원장
 
 ### `users/{uid}`
