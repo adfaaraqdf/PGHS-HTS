@@ -29,6 +29,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "isPublished", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" },
         { "fieldPath": "publishedAt", "order": "DESCENDING" }
       ]
     },
@@ -47,6 +48,7 @@
       "fields": [
         { "fieldPath": "clubId", "order": "ASCENDING" },
         { "fieldPath": "isPublished", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" },
         { "fieldPath": "publishedAt", "order": "DESCENDING" }
       ]
     },

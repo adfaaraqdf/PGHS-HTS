@@ -9,6 +9,9 @@ export const routeDefinitions = Object.freeze({
 });
 
 export function getRouteFromHash(hash) {
-  const route = hash.replace(/^#\//, '').trim() || 'home';
-  return Object.hasOwn(routeDefinitions, route) ? route : 'home';
+  const [route, clubId] = hash.replace(/^#\//, '').trim().split('/');
+  if (route === 'club' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clubId ?? '')) {
+    return Object.freeze({ name: 'club', clubId });
+  }
+  return Object.freeze({ name: Object.hasOwn(routeDefinitions, route) ? route : 'home' });
 }

@@ -89,7 +89,10 @@ service cloud.firestore {
         && boundedList(20)
         && resource.data.isPublished == true
         && resource.data.publishedAt <= request.time
-        && (resource.data.expiresAt == null || resource.data.expiresAt > request.time);
+        // UI reads only indefinitely published news. Time-limited notices are
+        // intentionally excluded until a server projection can expose them
+        // without weakening this query-time access boundary.
+        && resource.data.expiresAt == null;
       allow create, update, delete: if false;
     }
 

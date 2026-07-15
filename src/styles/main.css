@@ -70,3 +70,35 @@ p { line-height: 1.55; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) { .status-card__spinner { animation: none; } }
+
+.screen { display: grid; gap: 16px; padding: 12px 0 24px; }
+.screen-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.screen h1 { font-size: clamp(1.7rem, 8vw, 2.25rem); }
+.screen .eyebrow { margin-bottom: 4px; }
+.panel, .asset-total, .price-card, .trade-panel { border: 1px solid #26345a; border-radius: 16px; background: #111a31; }
+.panel { padding: 16px; }
+.panel p:last-child { margin-bottom: 0; }
+.panel--muted { background: linear-gradient(135deg, #151d37, #111a31); color: #b9c4df; }
+.panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.panel__heading a { min-height: 44px; display: grid; align-items: center; color: #90b6ff; font-size: .82rem; }
+.summary-grid, .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.summary-card, .metric-grid > div { padding: 14px; border: 1px solid #26345a; border-radius: 14px; background: #0f1830; }
+.summary-card span, .metric-grid span, .asset-total span, .portfolio-row small, .club-row small { display: block; color: #9ba8c6; font-size: .75rem; }
+.summary-card strong, .metric-grid strong { display: block; margin-top: 5px; font-size: .98rem; }
+.market-status { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border-radius: 999px; background: #273551; color: #c4d2ef; font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.market-status--open { background: #113d34; color: #87e0c5; }.market-status--halted { background: #4a2d32; color: #ffadb6; }
+.club-row, .portfolio-row { min-height: 64px; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #243154; }
+.club-row:first-of-type { border-top: 0; }.club-row__name, .club-row__price, .portfolio-row > span { min-width: 0; }.club-row strong, .portfolio-row strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .88rem; }.club-row__price { text-align: right; }.club-row__price small { margin-top: 3px; }.club-row__volume { grid-column: 2 / -1; color: #8996b5; font-size: .7rem; }
+.club-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: #2d4d8f; color: #eaf0ff; font-weight: 800; }.club-icon--large { width: 58px; height: 58px; border-radius: 18px; font-size: 1.35rem; }
+.is-up { color: #ff7382 !important; }.is-down { color: #62a6ff !important; }.is-flat { color: #aeb9d2 !important; }
+.news-list { display: grid; gap: 12px; padding: 0; margin: 0; list-style: none; }.news-list li { display: grid; gap: 3px; }.news-list strong { font-size: .88rem; }.news-list span { display: -webkit-box; overflow: hidden; color: #aeb9d2; font-size: .78rem; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.muted { color: #aeb9d2; font-size: .83rem; }.skeleton-list { display: grid; gap: 10px; }.skeleton { height: 62px; border-radius: 14px; background: linear-gradient(90deg, #16213c 25%, #21305a 37%, #16213c 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+.search-field { min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 13px; border: 1px solid #34466f; border-radius: 14px; background: #111a31; color: #90b6ff; }.search-field input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #f6f8ff; }.search-field input::placeholder { color: #8491af; }
+.sort-controls { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }.sort-button { min-width: 54px; min-height: 40px; padding: 0 12px; border: 1px solid #34466f; border-radius: 999px; background: #111a31; color: #b9c4df; cursor: pointer; white-space: nowrap; }.sort-button.is-selected { border-color: #7ea6ff; background: #293e70; color: #fff; }.result-count { margin: 0; color: #9ba8c6; font-size: .78rem; }
+.back-link { min-height: 44px; display: flex; align-items: center; color: #aeb9d2; font-size: .86rem; }.club-hero { display: flex; align-items: center; gap: 14px; }.club-hero h1 { margin: 0; }.aliases { margin: 4px 0 0; color: #aeb9d2; font-size: .8rem; }.price-card { padding: 18px; }.price-card > strong { display: block; font-size: 1.8rem; letter-spacing: -.04em; }.price-card p { margin: 8px 0 0; font-size: .9rem; font-weight: 700; }
+.trade-panel { position: sticky; bottom: 88px; z-index: 1; display: grid; gap: 8px; padding: 14px; box-shadow: 0 8px 30px rgb(0 0 0 / 30%); }.trade-panel label { font-size: .8rem; font-weight: 700; }.trade-panel input { min-height: 48px; width: 100%; padding: 0 12px; border: 1px solid #41557f; border-radius: 10px; background: #0b1020; color: #f6f8ff; }.trade-panel p { margin: 0; color: #b9c4df; font-size: .8rem; }.trade-panel > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.button--buy { background: #f07382; color: #25060b; }.button--sell { background: #6aabff; color: #06182f; }
+.modal-backdrop { position: fixed; z-index: 10; inset: 0; display: grid; place-items: end center; padding: 16px; background: rgb(2 6 17 / 72%); }.trade-modal { width: min(100%, 448px); padding: 20px; border: 1px solid #3a4e79; border-radius: 20px; background: #111a31; box-shadow: 0 16px 60px rgb(0 0 0 / 55%); }.trade-modal h2 { margin-bottom: 14px; }.trade-modal dl { display: grid; gap: 10px; margin: 0; }.trade-modal dl div { display: flex; justify-content: space-between; gap: 14px; }.trade-modal dt { color: #9ba8c6; }.trade-modal dd { margin: 0; font-weight: 700; text-align: right; }.modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }.modal-actions .button { width: 100%; }.toast { min-height: 1.4em; margin: 0; color: #c4d2ef; font-size: .8rem; }
+.asset-total { padding: 20px; background: linear-gradient(135deg, #243d74, #111a31); }.asset-total > strong { display: block; margin: 7px 0 13px; font-size: 1.85rem; letter-spacing: -.04em; }.asset-total > div { display: flex; justify-content: space-between; gap: 10px; }.asset-total > div span { font-size: .72rem; }.portfolio-row { grid-template-columns: minmax(0, 1fr) auto; }.portfolio-row > span:last-child { text-align: right; }
+@keyframes shimmer { to { background-position: -400% 0; } }
+@media (max-width: 359px) { .app-shell { padding-inline: 12px; }.session-nickname { max-width: 72px; }.summary-card { padding: 11px; }.asset-total > div { display: grid; gap: 4px; }.club-row { gap: 8px; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

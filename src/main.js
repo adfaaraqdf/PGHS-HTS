@@ -14,6 +14,7 @@ async function bootstrap() {
       { createAuthController },
       { createTradingService },
       { createTradeController },
+      { createMarketDataService },
     ] = await Promise.all([
       import('./config/env.js'),
       import('./config/firebase.js'),
@@ -22,6 +23,7 @@ async function bootstrap() {
       import('./state/auth-controller.js'),
       import('./services/trading.js'),
       import('./state/trade-controller.js'),
+      import('./services/market-data.js'),
     ]);
 
     const firebaseServices = initializeFirebase(environment);
@@ -30,7 +32,11 @@ async function bootstrap() {
     });
     const authController = createAuthController(authService);
     const tradeController = createTradeController(createTradingService(firebaseServices));
-    createRouter(container, authController, { tradeController }).start();
+    createRouter(container, authController, {
+      tradeController,
+      marketData: createMarketDataService(firebaseServices),
+      getUid: () => firebaseServices.auth.currentUser?.uid ?? null,
+    }).start();
   } catch (error) {
     console.error('PGHS HTS startup failed.', error);
     renderFatalError(container, error);
