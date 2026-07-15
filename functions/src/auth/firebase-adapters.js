@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
@@ -15,7 +16,7 @@ export function createFirestoreUserRepository() {
       const userRef = firestore.doc(`users/${identity.uid}`);
       const profileRef = firestore.doc(`publicProfiles/${identity.uid}`);
 
-      return firestore.runTransaction(async (transaction) => {
+      return runTransactionWithTransientRetry(firestore, async (transaction) => {
         const [userSnapshot, profileSnapshot] = await Promise.all([
           transaction.get(userRef),
           transaction.get(profileRef),
@@ -105,6 +106,28 @@ export function createFirestoreUserRepository() {
       });
     },
   };
+}
+
+async function runTransactionWithTransientRetry(firestore, operation, maximumAttempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+    try {
+      return await firestore.runTransaction(operation);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientTransactionError(error) || attempt === maximumAttempts) {
+        throw error;
+      }
+      await delay(attempt * 25);
+    }
+  }
+  throw lastError;
+}
+
+function isTransientTransactionError(error) {
+  return error?.code === 10
+    || error?.code === 'aborted'
+    || (error?.code === 3 && error?.details === 'Transaction is invalid or closed.');
 }
 
 export function createFirebaseClaimService() {

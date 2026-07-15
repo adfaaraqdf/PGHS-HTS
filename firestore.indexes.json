@@ -83,5 +83,11 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "priceHistory",
+      "fieldPath": "points",
+      "indexes": []
+    }
+  ]
 }

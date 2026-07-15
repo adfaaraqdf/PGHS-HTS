@@ -74,6 +74,12 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /priceHistory/{clubId} {
+      allow get: if isActiveSelf();
+      allow list: if isActiveSelf() && boundedList(20);
+      allow create, update, delete: if false;
+    }
+
     match /news/{newsId} {
       allow get: if isActiveSelf()
         && resource.data.isPublished == true

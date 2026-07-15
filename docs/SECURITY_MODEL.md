@@ -75,7 +75,7 @@
 
 허용 필드는 `clubId`, `quantity`, `idempotencyKey`뿐이다. 함수 종류가 side를 결정한다. `quantity`는 설정된 주문 상한 이하의 양의 정수이고 `clubId`는 공식 20개 중 하나여야 한다. 키는 길이·문자·엔트로피 기준을 만족해야 한다.
 
-가격, 총액, 수수료, UID, 보유량, 현금, 관리자 여부, 체결 시각을 보내면 무시하지 않고 요청 자체를 거부한다. 조용히 무시하면 변조를 발견하기 어렵다.
+가격, 총액, 수수료, UID, 보유량, 현금, 관리자 여부, 체결 시각을 보내면 무시하지 않고 요청 자체를 거부한다. 조용히 무시하면 변조를 발견하기 어렵다. 키는 16~128자의 `[A-Za-z0-9_-]`만 허용하고 기본 클라이언트는 `crypto.randomUUID()`를 사용한다.
 
 ### idempotency와 원자성
 
@@ -84,6 +84,7 @@
 - request 성공 결과, 사용자 현금, holding, 개인 이력, 전역 거래, demand shard는 하나의 transaction에 있다.
 - business rejection을 저장한다면 자산 변경 없이 terminal `rejected`로만 저장한다. 일시적 내부 오류는 성공으로 기록하지 않아 재시도할 수 있게 한다.
 - idempotency 문서는 운영 중 삭제하지 않는다. 보존 기간 만료 뒤에도 거래 원장보다 먼저 감사 가능성을 잃지 않게 한다.
+- 원본 idempotency key는 문서·로그에 저장하지 않고 도메인 분리된 SHA-256 digest만 사용한다. 보존 기간이 미정이면 `expiresAt=null`로 두어 조기 TTL 삭제와 중복 재처리를 막는다.
 
 ### 오류 정보
 
@@ -99,7 +100,7 @@ Rules의 학교 사용자 조건은 Auth 존재, `request.auth.token.schoolVerif
 | `users/{uid}/holdings/*` | deny | 본인 읽기만 | 직접 쓰기 deny | 거래 함수 |
 | `users/{uid}/tradeHistory/*` | deny | 본인 제한 쿼리 읽기만 | 직접 쓰기 deny | 거래 함수 create-only |
 | `publicProfiles/*` | deny | 직접 목록 deny | 직접 쓰기 deny | 투영 작업 |
-| `clubs`, `etfs`, `ratings` | deny | 읽기 | 직접 쓰기 deny | seed/가격/별점 작업 |
+| `clubs`, `etfs`, `ratings`, `priceHistory` | deny | 인증·활성 계정의 bounded 읽기 | 직접 쓰기 deny | seed/가격/별점 작업 |
 | `news`, `adminEvents` | deny | 공개·유효 문서 제한 읽기 | 직접 쓰기 deny | 관리자 함수 |
 | `trades`, `tradeRequests` | deny | deny | deny | 거래 함수 |
 | `auditLogs` | deny | deny | deny | 서버 create-only |
@@ -135,6 +136,7 @@ Rules의 학교 사용자 조건은 Auth 존재, `request.auth.token.schoolVerif
 
 - 사용자별·명령별 fixed window rate limit을 `rateLimits/{uid}/windows/{command_window}`에 두고 서버 transaction만 갱신한다. 정확한 수치는 부하 테스트 후 서버 설정으로 확정하며 TTL은 집행 창보다 길게 둔다.
 - 거래 수량, 요청 본문 크기, 닉네임 길이, 뉴스 길이, 이벤트 대상 수에 hard limit을 둔다.
+- 거래 함수는 `market/config.maxOrderQuantity`가 양의 안전 정수로 설정되지 않은 환경에서 fail-closed하며 임의 기본 주문 상한을 만들지 않는다.
 - 거래는 10개 demand shard 중 결정적 한 곳만 쓰며 전역 hot counter를 매번 갱신하지 않는다.
 - 리스트 쿼리는 cursor와 `limit`을 사용한다. 전체 사용자/거래/audit 구독은 Rules와 앱 구조 양쪽에서 금지한다.
 - App Check 실패, 사용자별 과도 호출, transaction retry, Firestore read/write 급증, 함수 오류율에 예산 경보를 둔다.

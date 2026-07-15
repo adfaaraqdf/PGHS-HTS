@@ -109,14 +109,16 @@ Admin SDK가 Rules를 우회한다는 사실 때문에 Rules 통과만으로 서
 
 의도된 `insufficient-*`, `duplicate-request`, `market-closed`는 시스템 오류율에서 분리하되 계약 오류 코드·UI를 각각 확인한다.
 
+4단계 자동화 기준은 순수 계산·요청 allowlist·Auth 도메인 단위 테스트, 클라이언트 요청 잠금 테스트, Firestore Emulator 원자성·동시성 통합 테스트로 나눈다. Emulator suite는 동일 키 20회, 응답 유실 재호출, 다른 키의 잔액/보유량 경계, 20명 동일 종목, 동시 매수·매도, 정지 transaction과 거래 잠금 순서, stale 가격·비활성 종목·미완성 window를 포함한다. 20/50 requests/s와 80% hotspot의 지속 부하·p95/p99 측정은 12단계 staging gate로 남긴다.
+
 ## 8. 가격 엔진 테스트
 
 - golden vectors: 중립, rating-only, demand-only, admin-only, 같은 방향 최대, 상쇄, zero volume, 최저가 근처, rounding 정확히 절반.
-- property: 동일 multiset 입력의 순서 변경 결과 동일, 재실행 동일, milli-star/ppm/bp 계산의 지정 반올림, 가격·fundamental 정수/≥100, rating target ±50/demand fundamental 이동 ±120/admin target ±60bp, 현재가 tick 이동 ±200bp. 이산 경계 fixture는 125원에서 200bp tick delta가 2원, 120bp demand delta가 1원이며 실제 변동률이 각 상한을 넘지 않음을 확인한다.
+- property: 동일 multiset 입력의 순서 변경 결과 동일, 재실행 동일, milli-star/ppm/bp 계산의 지정 반올림, 가격·fundamental 정수/100~1,000,000, rating target ±50/demand fundamental 이동 ±120/admin target ±60bp, 현재가 tick 이동 ±200bp. 이산 경계 fixture는 125원에서 200bp tick delta가 2원, 120bp demand delta가 1원이며 실제 변동률이 각 상한을 넘지 않음을 확인한다.
 - 100원 최저가와 원 단위 반올림에서 음의 rating/admin target 시작·종료가 비대칭 이익을 만들지 않고, 상한 밖 target은 여러 tick에 걸쳐 결정적으로 수렴하며 숨은 음수 carry를 쌓지 않는지 검증한다.
 - 별점 count 0은 저장상 3.0/표시상 '평가 없음'/엔진 prior 3.0·20건으로 중립이다. 1건 극단값과 20/100건 변화의 단조성·상한을 검사한다.
 - 개발 기본 freshness는 lastRatingAt 이후 10분까지 정상, 10~30분 선형 감쇠, 30분에 최근 기여 0인지를 검증하되 운영 승인 변경 시 fixture를 함께 바꾼다.
-- 동일 tick/window 중복 scheduler delivery, fencing lease 만료, 닫히지 않은 window, 샤드 일부 누락, candidate 계산 중단, 20-club 원자 publish 충돌을 fault injection한다. publish 전·실패 중에는 모든 club `lastPriceWindowId`와 ETF `valuationVersion`이 이전 회차인지 확인한다.
+- 동일 tick/window 중복 scheduler delivery, fencing lease 경쟁·만료, 닫히지 않은 window, 존재하는 샤드의 잘못된 값, candidate 계산 중단, 20-club 원자 publish 충돌을 fault injection한다. 생성되지 않은 샤드는 0으로 취급되는지 확인한다. publish 전·실패 중에는 모든 club `lastPriceWindowId`가 이전 회차이고, 재시도 뒤 전부 같은 새 회차인지 확인한다. 종목당 가격 이력은 항상 최근 60개 이하이며 클라이언트 쓰기를 거부해야 한다.
 - 60초 목표와 120초 최대 age를 staging에서 측정하고 초과 시 stale alert/UI가 작동하는지 본다.
 - 거래의 freshness 검사는 오직 `clubs.priceCalculatedAt`을 사용한다. description/rating/tradingStatus 변경으로 일반 `updatedAt`만 새로워져도 오래된 가격 거래가 계속 거부되는 회귀 테스트를 둔다.
 - 종목 순서·인기·이름과 무관하게 같은 config가 적용되고 전체 trade scan이 발생하지 않는지 operation trace로 확인한다.

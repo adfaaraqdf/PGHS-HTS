@@ -51,25 +51,27 @@
 
 ### 4.2 매수·매도
 
-1. 클라이언트는 `clubId`, 양의 정수 `quantity`, 충분한 무작위성을 가진 `idempotencyKey`만 보낸다.
+1. 클라이언트는 `clubId`, 양의 정수 `quantity`, 충분한 무작위성을 가진 `idempotencyKey`만 보낸다. 세 필드 외의 가격·총액·UID·시각 등을 추가하면 요청 전체를 거부한다.
 2. 함수는 Auth, App Check, 학교 도메인, 계정 상태, 시장·종목 거래 상태를 확인한다.
 3. 트랜잭션은 중복 방지 문서, 사용자, 보유 종목, 시장 상태, 종목의 서버 가격을 읽는다.
 4. 서버가 원 단위 체결 금액과 새 현금·수량·평균 매수가를 계산한다.
 5. 같은 트랜잭션에서 사용자, 보유 종목, 개인 거래 이력, 전역 거래 원장, idempotency 결과, 현재 수요 창의 결정적 샤드를 기록한다.
 6. 응답 유실 후 같은 키로 재호출해도 자산 변경은 한 번만 일어나고 저장된 결과가 반환된다.
 
-가격 엔진이 `clubs/{clubId}`를 갱신하는 순간과 거래가 겹치면 Firestore의 충돌 감지·자동 재시도 후 최신 서버 가격으로 체결한다. 시장 정지 명령도 거래가 읽는 `market/state`를 갱신하므로 정지 전에 시작했어도 그 뒤 커밋하려는 트랜잭션은 재검증된다.
+가격 엔진이 `clubs/{clubId}`를 갱신하는 순간과 거래가 겹치면 Firestore의 잠금·충돌 감지·자동 재시도 순서에 따라 최신 서버 가격으로 체결한다. 시장 정지 명령과 거래는 모두 `market/state`를 transaction에서 읽거나 갱신하므로 하나의 직렬 순서로 확정된다. 정지 transaction이 먼저 확정된 뒤 들어온 거래는 `market-closed`이며, 거래가 먼저 확정된 경우에만 그 다음 정지가 반영된다. 정지 이후 확정되는 새 거래는 없다.
+
+4단계의 시장 상대방은 별도 사용자 주문 매칭이나 재고 금고 문서를 만들지 않는 시스템 상대방이다. 따라서 `issuedShares`는 현재 시가총액의 명목 기준이며 매수 가능 재고 상한이 아니다. 재고 기반 `sold-out` 모델로 바꾸려면 스키마·오류 계약·동시성 시험을 별도 변경해야 한다.
 
 ### 4.3 수요 창과 가격 갱신
 
 1. 거래는 `market/state.activeDemandWindowId`를 읽고 `marketDemand/{clubId}/windows/{windowId}/shards/{00..09}` 중 요청 해시로 정한 한 샤드만 증가시킨다.
-2. 스케줄러가 lease를 획득하고 트랜잭션으로 활성 창을 다음 창으로 회전한다. 이전 창을 읽었던 미완료 거래는 충돌 후 새 창으로 재시도하므로 닫힌 창에는 뒤늦은 커밋이 남지 않는다.
-3. 가격 작업은 닫힌 창의 종목당 10개 샤드, 별점 스냅샷, 적용 가능한 관리자 이벤트, 설정 버전을 읽는다.
+2. 매분 UTC 스케줄러가 `serviceLeases/price-coordinator`를 획득하고 fencing token을 검증하는 트랜잭션으로 활성 창을 다음 창으로 회전한다. 동시에 `processingPriceWindowId`에 닫힌 창을 고정한다. 이전 창을 읽었던 미완료 거래는 충돌 후 새 창으로 재시도하므로 닫힌 창에는 뒤늦은 커밋이 남지 않는다.
+3. 가격 작업은 닫힌 창의 종목당 고정 10개 샤드 경로, 별점, 최대 50개 활성 관리자 이벤트, 설정 버전을 한 transaction에서 20개 run 입력으로 동결한다. 거래가 없어서 생성되지 않은 샤드 문서는 0이고 존재하는 비정상 샤드는 전체 회차를 거부한다.
 4. 수요는 정수 `fundamentalPrice`를 움직이고 별점·이벤트는 그 기준의 절대 target premium을 만든다. 현재가는 target을 향해 tick당 상한 안에서 이동하므로 반복 복리와 최저가 반올림 비대칭을 피한다.
 5. `priceRuns/{windowId_clubId}`를 idempotency 경계로 사용해 20개 후보 결과를 만들되 아직 공개 `clubs`에는 쓰지 않는다.
-6. 20개 run이 완료되면 `priceVersions/{windowId}`를 ready로 만든다. 5단계 pre-ETF publisher는 20개 `clubs`, `market/state.currentPriceWindowId`, version 상태를 한 transaction에 커밋한다. 7단계에서 ETF 계산이 추가되면 최종 publisher가 6개 `etfs`까지 같은 transaction에 포함한다. 각 단계에서 공개 중인 자료 전체가 같은 회차로만 바뀌어 시장·상세·거래가 혼합 회차 가격을 보지 않게 한다.
+6. 20개 run이 완료되면 `priceVersions/{windowId}`를 ready로 만든다. 5단계 publisher는 20개 `clubs`, 종목당 최근 60개로 제한한 `priceHistory`, 닫힌 수요 창의 applied 상태, `market/state`의 가격 포인터, version 상태를 한 transaction에 커밋한다. 7단계에서 ETF 계산이 추가되면 최종 publisher가 6개 `etfs`까지 같은 transaction에 포함한다. 각 단계에서 공개 중인 자료 전체가 같은 회차로만 바뀌어 시장·상세·거래가 혼합 회차 가격을 보지 않게 한다.
 
-스케줄러 중복 호출과 함수 재시도는 정상 상황으로 간주한다. lease와 결정적 run ID가 중복 가격 반영을 막는다.
+스케줄러 중복 호출과 함수 재시도는 정상 상황으로 간주한다. lease, fencing token, `processingPriceWindowId`, 결정적 run ID가 중복 가격 반영을 막는다. 계산 중 실패하면 새 수요 창은 계속 열려 있고 다음 호출은 새 창을 또 닫지 않고 기존 processing 창의 미완료 run만 이어서 처리한다.
 
 ### 4.4 랭킹
 
@@ -117,6 +119,8 @@
 
 `market/state.status`는 `open|halted|closed`만 사용한다. 개장 전은 `closed`이면서 `openedAt=null`, cutoff 이후도 `closed`다. 폐장 진행은 별도 `closureRuns/{closureId}`의 `pending→running→ready→finalized` workflow로 관리하고, 최종 결과는 `finalMarketSnapshots/{closureId}`에 불변 보관한다.
 
+거래 성공 시 수요 샤드 원장은 즉시 원자적으로 갱신되지만 `clubs.buyVolume`, `sellVolume`, `totalVolume`은 다음 가격 회차가 샤드를 집계해 공개할 때까지 이전 projection일 수 있다. 거래 화면은 성공 응답과 본인 자산 snapshot을 권위 결과로 사용하고, 공개 인기·거래량 표시는 이 제한된 지연을 허용한다.
+
 가격 `priceCalculatedAt`이 120초를 넘으면 UI는 “갱신 지연”을 표시한다. 일반 `updatedAt`은 freshness에 사용하지 않는다. 거래 함수는 설정된 최대 가격 나이를 초과하면 신규 체결을 fail-closed로 거부하고 운영 경보를 발생시킨다. 로컬 캐시 값으로 체결하지 않는다.
 
 ## 7. 장애 복구와 운영 안전장치
@@ -150,11 +154,13 @@ Firestore 관리형 백업/PITR 사용 가능 여부와 보존 정책은 실제 
 - 리전은 학교 사용자와 Firestore가 가까운 동일 리전 계열로 통일하고, 확정된 리전은 운영 중 임의 변경하지 않는다.
 - 운영 배포와 Git push는 사용자 명시 지시 없이 수행하지 않는다.
 
-가격·랭킹·폐장 coordinator는 `serviceLeases/{leaseId}`의 만료와 증가하는 fencing token을 사용한다. callable 남용 제한은 `rateLimits/{uid}/windows/{command_window}`에 사용자·명령별로 분산하고 서버 transaction만 갱신한다. 두 경로는 클라이언트 접근을 전면 거부한다.
+가격·랭킹·폐장 coordinator는 `serviceLeases/{leaseId}`의 만료와 증가하는 fencing token을 사용한다. 가격 lease 만료는 공통 `maxPriceDelaySeconds`와 같고 창 회전·run 완료·ready·publish마다 현재 owner/token/expiry를 재검사한다. callable 남용 제한은 `rateLimits/{uid}/windows/{command_window}`에 사용자·명령별로 분산하고 서버 transaction만 갱신한다. 두 경로는 클라이언트 접근을 전면 거부한다.
 
 ## 9. 용량 확장 판단
 
 10샤드는 수백 명 규모의 보수적 개발 기본값이다. 부하 테스트에서 특정 샤드의 충돌·지연이 임계치를 넘으면 개장 전에만 shard count를 올리고 설정 버전을 고정한다. 운영 중 샤드 수 변경은 기존 창과 새 창의 해석이 달라지므로 새 window 경계에서만 허용한다.
+
+4단계에서 남는 주요 병목은 같은 사용자의 모든 거래가 `users/{uid}` 한 문서에서 직렬화되는 점과 인기 종목 수요가 10개 샤드 중 하나에 모이는 점이다. 첫 병목은 음수 잔액·수량을 막기 위한 의도된 경계이고, 두 번째는 단일 club 거래량 문서를 매번 쓰는 구조보다 충돌 범위를 약 10분의 1로 줄인다. 수백 명 규모 권장안은 현재 10샤드를 유지한 채 20 requests/s 지속·50 requests/s burst·80% 인기 종목 집중 부하를 스테이징에서 측정하고, p95 지연·ABORTED 재시도가 기준을 넘을 때만 다음 window부터 샤드 수를 조정하는 것이다.
 
 다음 현상은 구조 재검토 신호다.
 

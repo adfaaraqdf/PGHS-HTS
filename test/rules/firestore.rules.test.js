@@ -73,6 +73,12 @@ async function seedFixtures() {
         clubId: 'rechem',
         averageRatingMilli: 3_000,
       }),
+      setDoc(doc(database, 'priceHistory/rechem'), {
+        schemaVersion: 1,
+        clubId: 'rechem',
+        points: [{ windowId: 'window-1', price: 10_000, calculatedAt: now }],
+        updatedAt: now,
+      }),
       setDoc(doc(database, 'market/config'), { schemaVersion: 1, initialPrice: 10_000 }),
       setDoc(doc(database, 'market/state'), { schemaVersion: 1, status: 'closed' }),
       setDoc(doc(database, 'publicLeaderboard/current'), {
@@ -114,6 +120,7 @@ describe('허용된 최소 읽기', () => {
     const database = verifiedDatabase();
     await assertSucceeds(getDoc(doc(database, 'users/user-a')));
     await assertSucceeds(getDocs(query(collection(database, 'clubs'), limit(20))));
+    await assertSucceeds(getDoc(doc(database, 'priceHistory/rechem')));
     await assertSucceeds(getDocs(query(collection(database, 'users/user-a/tradeHistory'), limit(50))));
     await assertSucceeds(getDoc(doc(database, 'publicLeaderboard/current')));
   });
@@ -176,6 +183,10 @@ describe('권위 데이터 직접 조작 차단', () => {
     await assertFails(setDoc(doc(database, 'users/user-a/tradeHistory/fake'), { quantity: 1 }));
     await assertFails(setDoc(doc(database, 'trades/fake'), { uid: 'user-a', quantity: 1 }));
     await assertFails(setDoc(doc(database, 'tradeRequests/fake'), { uid: 'user-a' }));
+    await assertFails(setDoc(
+      doc(database, 'marketDemand/rechem/windows/window-1/shards/00'),
+      { buyQuantity: 1 },
+    ));
   });
 
   test('종목 가격, 소수점 가격, 거래량을 직접 변경하지 못한다', async () => {
@@ -183,6 +194,7 @@ describe('권위 데이터 직접 조작 차단', () => {
     await assertFails(updateDoc(reference, { currentPrice: 20_000 }));
     await assertFails(updateDoc(reference, { currentPrice: 10_000.5 }));
     await assertFails(updateDoc(reference, { totalVolume: 1 }));
+    await assertFails(updateDoc(doc(verifiedDatabase(), 'priceHistory/rechem'), { points: [] }));
   });
 
   test('ETF 가격과 별점 집계를 직접 변경하지 못한다', async () => {

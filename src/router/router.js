@@ -3,7 +3,7 @@ import { getRouteFromHash } from './routes.js';
 import { createPlaceholderView } from '../views/placeholder-view.js';
 import { renderAuthView } from '../views/auth-view.js';
 
-export function createRouter(container, authController) {
+export function createRouter(container, authController, { tradeController } = {}) {
   let authState = authController.getState();
   let unsubscribeAuthState = () => {};
 
@@ -38,6 +38,7 @@ export function createRouter(container, authController) {
     window.removeEventListener('hashchange', render);
     unsubscribeAuthState();
     authController.dispose();
+    tradeController?.dispose();
   };
 
   return Object.freeze({ start, dispose });

@@ -10,7 +10,7 @@
   "scripts": {
     "lint": "eslint .",
     "test": "node --test test/*.test.js",
-    "test:emulator": "node --test test-emulator/*.test.js"
+    "test:emulator": "node --test --test-concurrency=1 test-emulator/*.test.js"
   },
   "dependencies": {
     "firebase-admin": "13.10.0",

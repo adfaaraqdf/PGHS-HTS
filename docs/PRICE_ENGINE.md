@@ -11,7 +11,7 @@
 - 모든 club은 동일한 `market/config`를 사용한다. 종목별 초기 가격, 발행량, 변동·별점·이벤트 계수 override를 금지한다.
 - 개발 seed는 현재가·`fundamentalPrice`·기준가·전일 종가 10,000원, 발행량 100,000주, 시가총액 1,000,000,000원, 거래량 0으로 동일하다.
 - 가격과 돈은 원 단위 정수이며 모든 중간 비율은 정수 bp 또는 명시된 고정 정밀도로 계산한다.
-- 새 가격은 최소 100원이고 한 tick 총변동은 ±200bp를 넘지 않는다.
+- 새 가격과 fundamental은 개발 공통 범위 100~1,000,000원 안이고 한 tick 총변동은 ±200bp를 넘지 않는다.
 - 평가 수가 적을수록 중립 3.0에 강하게 수축한다. 평가가 없으면 가격 신호는 0이다.
 - 열린 수요 창이나 전체 거래 컬렉션을 계산 입력으로 스캔하지 않는다.
 - 스케줄러 재실행, 네트워크 재시도, 함수 중복 실행이 가격을 두 번 반영하지 않는다.
@@ -27,6 +27,7 @@
 | `issuedShares` | 100,000주 | 동일 초기 시총 10억원을 만드는 공통값 |
 | `initialVolume` | 0주 | 모든 종목의 동일 출발 |
 | `minPrice` | 100원 | 0·음수 방지와 거래 가능 단위 유지 |
+| `maxPrice` | 1,000,000원 | 극단 입력·시가총액 overflow를 막는 공통 개발 상한 |
 | `demandShardCount` | 10 | 수백 명 경합 완화를 위한 제한된 시작점 |
 | `priceTickSeconds` | 60초 | 분 단위 스케줄, 비용과 운영 단순성 |
 | `maxPriceDelaySeconds` | 120초 | 한 회 재시도 여유; 초과 시 stale/거래 차단 |
@@ -43,6 +44,8 @@
 | `demandLiquidityFloorShares` | 100주 | 한두 건이 최대 수요 변동을 만드는 것 방지 |
 | `ratingFreshMinutes` | 10분 | 최신 입력은 전량 반영 |
 | `ratingZeroMinutes` | 30분 | 오래된 변화 신호는 선형 감쇠 후 제거 |
+| `priceHistoryLimit` | 60개 | 종목당 최근 1시간 표시 이력을 bounded array로 유지 |
+| `maxActiveAdminEvents` | 50개 | 회차 입력과 Firestore transaction 읽기 크기를 제한 |
 | `ratioRoundingMode` | half-up | 평균·신호·등락률의 대칭 반올림 |
 | `boundedDeltaRoundingMode` | toward-zero | 정수 원 단위에서도 bp 상한을 절대 넘지 않음 |
 
@@ -53,9 +56,9 @@
 - window ID는 UTC epoch minute를 기반으로 만든 결정적 문자열이다. 화면 표시만 `FESTIVAL_TIMEZONE`을 사용한다.
 - 거래 함수는 `market/state.activeDemandWindowId`를 transaction에서 읽고 종목·창별 10개 샤드 중 하나를 증가시킨다.
 - 샤드 선택은 `requestId`의 안정 해시 modulo `shardCount`다. 같은 거래 재시도는 항상 같은 샤드를 가리킨다.
-- 1분 스케줄러는 lease를 얻은 뒤 transaction으로 활성 창을 교체한다. 이전 state를 읽었던 미완료 거래는 재시도되어 새 창으로 들어가므로 닫힌 창은 안정된 입력이 된다.
-- 가격 입력은 닫힌 10개 샤드의 합, 해당 시점의 별점 집계, 활성 관리자 이벤트, 이전 `currentPrice`·`fundamentalPrice`, `configVersion`이다.
-- 이벤트는 `(startsAt, eventId)` 순으로, 샤드는 shard ID 순으로 정렬한다. 입력의 canonical digest를 `priceRuns`에 기록한다.
+- 1분 스케줄러는 lease를 얻은 뒤 transaction으로 활성 창을 교체하고 닫힌 창 ID를 `processingPriceWindowId`에 기록한다. 이전 state를 읽었던 미완료 거래는 재시도되어 새 창으로 들어가므로 닫힌 창은 안정된 입력이 된다.
+- 가격 입력은 닫힌 10개 샤드 경로의 합, 해당 snapshot의 별점 집계, 최대 50개 활성 관리자 이벤트, 이전 `currentPrice`·`fundamentalPrice`, `configVersion`이다. 거래가 없어 생성되지 않은 샤드는 0이고, 존재하는 비정상 샤드는 회차를 거부한다.
+- 20개 종목·별점·창·샤드·이벤트를 한 Firestore transaction에서 `priceRuns.input`으로 동결한다. 이벤트는 `(startsAt, eventId)` 순으로, 샤드는 shard ID 순으로 정렬하며 canonical digest를 기록한다.
 
 서버 도착 시각이 창 배정을 결정한다. 클라이언트 시계와 클라이언트가 보낸 시각은 사용하지 않는다.
 
@@ -130,19 +133,19 @@
 
 `demandDeltaWon = truncTowardZero(oldFundamentalPrice × demandBps / 10_000)`
 
-`newFundamentalPrice = max(minPrice, oldFundamentalPrice + demandDeltaWon)`
+`newFundamentalPrice = clamp(oldFundamentalPrice + demandDeltaWon, minPrice, maxPrice)`
 
 `statePremiumBps = desiredRatingPremiumBps + desiredAdminPremiumBps`
 
 `stateTargetDeltaWon = truncTowardZero(newFundamentalPrice × statePremiumBps / 10_000)`
 
-`targetPrice = max(minPrice, newFundamentalPrice + stateTargetDeltaWon)`
+`targetPrice = clamp(newFundamentalPrice + stateTargetDeltaWon, minPrice, maxPrice)`
 
 `maxTickDeltaWon = truncTowardZero(oldPrice × maxTickChangeBps / 10_000)`
 
 `downBound = max(minPrice, oldPrice - maxTickDeltaWon)`
 
-`upBound = oldPrice + maxTickDeltaWon`
+`upBound = min(maxPrice, oldPrice + maxTickDeltaWon)`
 
 `newPrice = clamp(targetPrice, downBound, upBound)`
 
@@ -159,19 +162,21 @@ target이 1회 상한 밖이면 현재가는 매 tick 같은 target을 향해 �
 
 ## 6. 실행·idempotency 프로토콜
 
-1. 정규 스케줄 호출은 `market/state.status=open`과 마지막 완료 window를 확인한다. `halted`에서는 새 회차를 만들지 않되 incident-admin이 같은 실패 window/run ID를 복구 재실행할 수 있다. 폐장 최종 tick은 시장이 `closed`인 상태에서 승인된 `closureRuns/{closureId}.status=running`을 가진 별도 명령만 허용한다.
-2. `serviceLeases/price-coordinator`를 transaction으로 획득하고 증가하는 fencing token과 expiry를 기록한다.
-3. 활성 demand window를 회전하고 이전 창을 `closed`로 고정한다.
-4. 20개 club 각각에 결정적 ID `windowId_clubId`인 `priceRuns`를 만든다.
+1. UTC Cloud Scheduler는 매분 1회 호출하고 최대 120초 안에서 1회 재시도한다. `market/state.status=open`이 아니면 새 정규 회차를 만들지 않는다.
+2. `serviceLeases/price-coordinator`를 transaction으로 획득하고 증가하는 fencing token과 `maxPriceDelaySeconds` 뒤 expiry를 기록한다. 모든 단계의 쓰기 transaction이 owner/token/expiry를 다시 확인한다.
+3. 처리 중인 창이 없을 때만 활성 demand window를 회전하고 이전 창을 `closed` 및 `processingPriceWindowId`로 고정한다. 처리 중이면 그 창을 재개한다.
+4. 한 transaction에서 20개 club 입력을 동결하고 각 club에 결정적 ID `windowId_clubId`인 `pending` `priceRuns`를 만든다.
 5. run이 이미 `completed`면 저장 결과를 반환하고 가격을 다시 쓰지 않는다.
 6. 입력을 읽고 후보 결과를 `priceRuns`에 완료한다. 이 단계는 공개 `clubs`를 변경하지 않는다.
-7. 20개 성공을 확인해 `priceVersions/{windowId}=ready`로 만든다. 5단계에서는 알려진 20개 run과 이전 version을 검증하고 20개 `clubs`, `market/state.currentPriceWindowId`, version=`published`를 한 transaction에 커밋한다.
+7. 20개 성공을 확인해 `priceVersions/{windowId}=ready`로 만든다. 5단계에서는 20개 run과 이전 가격을 검증하고 20개 `clubs`, 20개 bounded `priceHistory`, 닫힌 창 20개의 applied 상태, `market/state.currentPriceWindowId/processingPriceWindowId`, version=`published`를 한 transaction에 커밋한다.
 8. 7단계부터는 ready 뒤 ETF 후보 6개를 계산하고 publisher를 최종 프로토콜로 확장한다. 이 transaction은 20개 `clubs`, 6개 `etfs`, pointer, version=`published`를 함께 커밋하며 모든 club의 `priceCalculatedAt`과 ETF `calculatedAt/sourcePriceAsOf`는 같은 publish 시각이다.
-9. lease를 해제하고 duration, read/write 수, retry, clamp 여부, stale age를 기록한다.
+9. lease를 해제하고 상태와 window ID를 구조화 로그에 기록한다. 상세 duration/read/write/clamp 지표와 자동 경보는 운영 관측 단계에서 추가한다.
 
-한 club 계산 실패는 같은 run ID로 그 club만 재시도한다. 어떤 `clubs`/ETF 문서도 20개가 모두 준비되기 전 바뀌지 않는다. 원자 publish transaction은 20개 club + 6개 ETF + market state + version, 총 28개의 작은 문서를 한 번에 쓰는 구조이며 실제 문서·인덱스 크기, 경합, Firestore transaction 한도를 staging 부하 테스트로 검증한다. publish 실패 시 이전 회차가 그대로 공개된다.
+한 club 계산 실패는 같은 run ID의 `pending` 상태부터 재시도한다. 이미 `completed`인 run은 결과를 그대로 재사용하고 `attemptCount`를 늘리지 않는다. 어떤 `clubs` 문서도 20개가 모두 준비되기 전 바뀌지 않으며 publish 실패 시 이전 회차가 그대로 공개된다. 새 활성 수요 창은 계속 열려 있으므로 수요를 잃지 않되, 실패가 120초를 넘으면 거래 함수가 stale 가격으로 fail-closed한다.
 
-단계 순서는 유지한다. 5단계에서는 ETF를 선행 구현하지 않고 20개 club + market state + version만 원자 publish한다. 7단계가 ETF 계산을 구현하면서 같은 publisher를 위의 최종 28문서 구조로 확장한다.
+단계 순서는 유지한다. 5단계에서는 ETF를 선행 구현하지 않는다. 7단계가 ETF 계산을 구현하면서 같은 publisher를 확장한다.
+
+`priceHistory/{clubId}`는 별도 무한 로그가 아니라 `{windowId, price, calculatedAt}` 최근 `priceHistoryLimit=60`개만 보관한다. 매 publish에서 이전 배열을 검증하고 마지막 60개로 잘라 같은 transaction에 쓴다. 배열 필드의 Firestore 인덱싱은 비활성화한다.
 
 ## 7. ETF 계산
 
@@ -197,7 +202,7 @@ ETF는 해당 `valuationVersion`의 구성 club 가격을 동일 가중으로 �
 - 120초 초과 시 UI는 갱신 지연을 표시하고 거래 함수는 `price-stale`로 신규 체결을 fail-closed 한다.
 - 스케줄 중복은 같은 run ID로 no-op한다. 부분 실패는 완료되지 않은 club만 재시도한다.
 - 입력 digest가 같은데 출력이 다르면 결정성 위반으로 시장을 정지하고 배포·설정 버전을 조사한다.
-- 샤드 합계가 음수, 타입 오류, 예상 shard 누락, 비정상 미래 별점 시각, 설정 버전 불일치이면 그 club 가격을 갱신하지 않는다.
+- 존재하는 샤드 합계가 음수·타입 오류이거나, 비정상 종목/창/설정 버전이면 회차 전체를 게시하지 않는다. 생성되지 않은 예상 샤드는 거래 0이고, 비정상·미래·오래된 별점은 가격 기여 0으로 중립 처리한다.
 - 두 회 연속 최대 지연, 다수 club 실패, 가격 불변 조건 위반은 전체 시장 자동 halt 후보이며 운영자가 원인을 확인한 뒤 명시적으로 재개한다.
 - 마지막 정상 가격을 유지하는 것은 허용하지만 오래된 가격으로 체결하는 것은 허용하지 않는다.
 
@@ -205,7 +210,7 @@ ETF는 해당 `valuationVersion`의 구성 club 가격을 동일 가중으로 �
 
 ## 10. 비용 상한
 
-기본 가격 회차의 수요 읽기는 `20 clubs × 10 shards = 200 shard reads`에 고정된다. 여기에 20개 별점/club 입력, 활성 이벤트 제한 쿼리, 20개 run/club 쓰기, 6개 ETF 투영이 더해진다. 전체 `trades` 스캔이나 사용자별 holdings 스캔은 없다.
+기본 가격 회차의 수요 읽기는 `20 clubs × 10 shards = 200 shard paths`에 고정된다. 여기에 20개 별점/club/window 입력, 최대 50개 활성 이벤트, 20개 run과 bounded history의 읽기·쓰기가 더해진다. 5단계에는 ETF 투영이 없고 전체 `trades` 또는 사용자별 holdings 스캔도 없다.
 
 운영 전 개장 분을 곱해 가격 엔진 read/write 예산을 산정하고 무료/유료 한도와 별도로 경보를 둔다. 이벤트 쿼리는 시간·상태·대상 수를 제한하고, price run과 닫힌 창의 보존/TTL은 감사 기간 확정 뒤 적용한다.
 
@@ -232,8 +237,8 @@ ETF는 해당 `valuationVersion`의 구성 club 가격을 동일 가중으로 �
 - 10개 샤드 합계와 전역 거래 원장 표본 일치
 - 창 회전과 동시에 들어온 거래가 구/신 창에 중복·누락되지 않음
 - 같은 스케줄 호출·run 동시 실행이 가격 한 번만 반영
-- club 한 개 실패 후 재시도로 ETF가 혼합 회차를 공개하지 않음
-- publish 직전/중단/충돌에서 20 clubs의 `lastPriceWindowId`와 6 ETFs의 `valuationVersion`이 전부 이전 또는 전부 새 회차이고 혼합되지 않음
+- club 다섯 개 완료 뒤 함수 종료와 재시도에서 완료 run은 재계산하지 않고 20개 club이 한 번만 게시됨
+- publish 직전/중단/충돌에서 20 clubs의 `lastPriceWindowId`가 전부 이전 또는 전부 새 회차이고 혼합되지 않음
 - 가격 갱신과 거래 동시 실행 시 최신 서버 가격으로 원자 체결
 - 시장 halt/closed cutoff와 거래 경합에서 정지 후 신규 commit 없음
 - 120초 stale 시 체결 거부, 복구 후 명시적 재개

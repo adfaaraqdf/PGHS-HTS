@@ -5,7 +5,7 @@
 - 문서 ID와 필드 이름은 이 문서를 단일 기준으로 삼는다. 모든 주요 문서에는 양의 정수 `schemaVersion`을 둔다.
 - 돈·가격·수량·거래량·순위는 정수다. 비율은 정수 basis point(bp, 100bp = 1%)로 저장한다. 시간은 서버 `Timestamp`다.
 - 사용자 자산과 시장 파생값은 Admin SDK를 사용하는 서버만 쓴다. 클라이언트 입력은 서버 원장의 필드로 그대로 복사하지 않는다.
-- 무한히 커지는 배열은 금지한다. 거래·뉴스·이벤트·감사 로그는 개별 문서와 cursor pagination을 사용한다. 예외는 구성원이 최대 7개인 ETF 구성과 항목이 최대 10개인 공개 랭킹이다.
+- 무한히 커지는 배열은 금지한다. 거래·뉴스·이벤트·감사 로그는 개별 문서와 cursor pagination을 사용한다. 예외는 구성원이 최대 7개인 ETF 구성, 항목이 최대 10개인 공개 랭킹, 최근 60개로 잘라 쓰는 가격 이력뿐이다.
 - 삭제가 회계 의미를 없애는 원장 문서는 삭제하지 않는다. 사용자 탈퇴·계정 정지는 상태로 표현한다.
 - 문서 ID에 이메일, 닉네임, 실명 같은 개인정보를 넣지 않는다. 서버 발급 무작위 `publicId`는 내부 tie-break에만 사용하고 공개 화면·payload에 내보내지 않는다.
 - `createdAt`, `updatedAt`, `executedAt` 등 권위 시각은 서버에서 기록한다.
@@ -23,6 +23,7 @@
 | `trades/{tradeId}` | 전역 불변 거래 원장 | 클라이언트 접근 금지 |
 | `tradeRequests/{requestId}` | idempotency 결과 | 클라이언트 접근 금지 |
 | `ratings/{clubId}` | 서버 정규화 별점 집계 | 인증된 학교 사용자 읽기, 쓰기 금지 |
+| `priceHistory/{clubId}` | 최근 60개 가격점의 bounded projection | 인증된 학교 사용자 읽기, 쓰기 금지 |
 | `news/{newsId}` | 뉴스·공지 | 제한 쿼리 읽기, 쓰기 금지 |
 | `adminEvents/{eventId}` | 가격 영향 이벤트 | 활성 제한 쿼리 읽기, 쓰기 금지 |
 | `auditLogs/{logId}` | append-only 감사 원장 | 클라이언트 접근 금지 |
@@ -126,9 +127,11 @@
 | `errorCode` | string 또는 null | 저장한 업무 거부의 안전한 코드 |
 | `createdAt` | Timestamp | 최초 처리 시각 |
 | `completedAt` | Timestamp | terminal 확정 시각 |
-| `expiresAt` | Timestamp | idempotency 보존 종료 후보 시각 |
+| `expiresAt` | Timestamp 또는 null | 보존 정책 확정 전 null; TTL을 승인할 때만 종료 후보 시각 |
 
 성공 결과와 자산 쓰기는 같은 트랜잭션에 있다. 같은 키·같은 payload digest는 저장 결과를 반환하고, 같은 키·다른 digest는 `duplicate-request`로 거부한다. 일시적 내부 오류는 terminal 문서를 만들지 않는다. TTL은 축제 종료 후 재시도·감사 보존 기간이 지난 문서만 대상으로 하며 운영 중에는 삭제하지 않는다.
+
+4단계 구현에서 성공 요청의 `requestId`와 `tradeId`는 UID와 원본 키를 도메인 분리해 SHA-256으로 만든 동일한 64자 hex ID다. 원본 키는 저장하지 않는다. `result.executedAt`은 callable 재생에 안전한 ISO 8601 문자열이고, 원장·이력·요청 문서의 권위 시각은 Firestore `Timestamp`다. 거부와 일시 오류는 현재 terminal 문서를 만들지 않으므로 성공으로 오인되지 않고 같은 키로 안전하게 재시도할 수 있다.
 
 ## 4. 공개 프로필과 랭킹
 
@@ -198,8 +201,8 @@
 | `boothLocation`, `operatingHours` | string 또는 null | 제공 전 null |
 | `isActive` | boolean | 초기 true |
 | `tradingStatus` | string | `open`, `halted`, `closed` |
-| `currentPrice` | integer | 초기 10,000, 최소 100 |
-| `fundamentalPrice` | integer | 수요로만 이동하는 엔진 기준가, 초기 10,000, 최소 100 |
+| `currentPrice` | integer | 초기 10,000, 개발 범위 100~1,000,000 |
+| `fundamentalPrice` | integer | 수요로만 이동하는 엔진 기준가, 개발 범위 100~1,000,000 |
 | `basePrice` | integer | 공통 기준 10,000 |
 | `previousClose` | integer | 개발 seed 10,000 |
 | `priceChange` | integer | `currentPrice - previousClose` |
@@ -240,6 +243,7 @@
 | `issuedShares` | 100,000주 |
 | `initialVolume` | 0 |
 | `minPrice` | 100원 |
+| `maxPrice` | 1,000,000원 |
 | `demandShardCount` | 10 |
 | `priceTickSeconds` | 60 |
 | `maxPriceDelaySeconds` | 120 |
@@ -252,6 +256,7 @@
 | `ratingLevelWeightPermille`, `ratingRecentWeightPermille` | 700, 300; 합 1,000 |
 | `demandLiquidityFloorShares` | 100 |
 | `ratingFreshMinutes`, `ratingZeroMinutes` | 10, 30 |
+| `priceHistoryLimit`, `maxActiveAdminEvents` | 60, 50 |
 | `rankingTickSeconds`, `maxRankingDelaySeconds` | 60, 120 |
 | `maxOrderQuantity` | 운영 전 확정 placeholder |
 | `ratioRoundingMode`, `boundedDeltaRoundingMode` | `half-up`, `toward-zero` |
@@ -260,9 +265,11 @@
 
 가격 계수 전체, 랭킹 주기, 허용 가격 나이, 축제 타임존도 이 문서 또는 서버 환경의 단일 버전 설정으로 관리한다. 각 종목별 계수 재정의는 금지한다.
 
+`maxOrderQuantity`가 null이거나 양의 안전 정수가 아니면 거래 함수는 `internal`로 fail-closed한다. 개발·Emulator fixture는 명시적인 양의 값을 사용하며 운영 개장 전에 실제 상한을 설정해야 한다.
+
 ### `market/state`
 
-`schemaVersion`, `status`(`open|halted|closed`), `reason`, `activeDemandWindowId`, `currentPriceWindowId`, `configVersion`, `openedAt`, `haltedAt`, `closedAt`, `scheduledOpenAt`, `scheduledCloseAt`, `timezone`, `updatedAt`을 둔다. 개장 전은 `closed`이면서 `openedAt=null`이다. 폐장 단계는 `closureRuns`로 분리한다. 학생이 읽는 이 문서에는 `updatedBy` 같은 관리자 식별자를 넣지 않으며 거래 함수는 `status=open`일 때만 체결한다.
+`schemaVersion`, `status`(`open|halted|closed`), `reason`, `activeDemandWindowId`, `processingPriceWindowId`, `currentPriceWindowId`, `configVersion`, `openedAt`, `haltedAt`, `closedAt`, `scheduledOpenAt`, `scheduledCloseAt`, `timezone`, `updatedAt`을 둔다. `processingPriceWindowId`는 회전 후 게시 전인 닫힌 창 하나만 가리키며 게시와 같은 transaction에서 null로 돌아간다. 개장 전은 `closed`이면서 `openedAt=null`이다. 폐장 단계는 `closureRuns`로 분리한다. 학생이 읽는 이 문서에는 `updatedBy` 같은 관리자 식별자를 넣지 않으며 거래 함수는 `status=open`일 때만 체결한다.
 
 ### `news/{newsId}`
 
@@ -284,17 +291,20 @@
 
 ### `marketDemand/{clubId}/windows/{windowId}/shards/{shardId}`
 
-샤드 ID는 `00`~`09`다. `schemaVersion`, `buyQuantity`, `sellQuantity`, `buyTradeCount`, `sellTradeCount`, `grossBuyAmount`, `grossSellAmount`, `updatedAt`만 둔다. 모두 0 이상 정수다. 거래 요청의 결정적 해시로 샤드를 골라 동일 요청 재시도가 다른 샤드에 중복 반영되지 않게 한다.
+샤드 ID는 `00`~`09`다. `schemaVersion`, `buyQuantity`, `sellQuantity`, `buyTradeCount`, `sellTradeCount`, `grossBuyAmount`, `grossSellAmount`, `updatedAt`만 둔다. 모두 0 이상 정수다. 거래가 처음 들어온 샤드만 생성하므로 닫힌 창에서 존재하지 않는 예상 경로는 0으로 계산한다. 존재하는 샤드의 누락 필드·잘못된 타입·음수는 회차 전체를 fail-closed한다. 거래 요청의 결정적 해시로 샤드를 골라 동일 요청 재시도가 다른 샤드에 중복 반영되지 않게 한다.
+
+거래 transaction은 샤드의 정수 카운터를 읽고 overflow를 검사한 절대값으로 갱신한다. `clubs`의 거래량 projection은 거래마다 직접 쓰지 않으며 가격 회차가 닫힌 창을 집계할 때 갱신하므로, 샤드 원장과 공개 거래량 사이에는 최대 다음 정상 가격 회차까지 지연이 있다.
 
 ### `priceRuns/{windowId_clubId}`
 
-`schemaVersion`, `windowId`, `clubId`, `status`, `configVersion`, `inputDigest`, 각 샤드 합계, milli-star 별점 입력, 정렬된 `adminEventIds` bounded 목록, `demandBps`, `desiredRatingPremiumBps`, `desiredAdminPremiumBps`, `oldFundamentalPrice`, `newFundamentalPrice`, `targetPrice`, `downBound`, `upBound`, `appliedChangeBps`, `oldPrice`, `newPrice`, `startedAt`, `completedAt`, `attemptCount`, `errorCode`를 둔다. 동일 ID의 `completed` 결과는 다시 가격에 적용하지 않는다.
+`schemaVersion`, `runId`, `windowId`, `clubId`, `status`(`pending|completed`), `configVersion`, `inputDigest`, `input`, `result`, `attemptCount`, `createdAt`, `completedAt`을 둔다. `input`은 공통 설정, 이전 종목 가격·거래량, 10샤드 합계, 정수 별점, 정렬된 활성 이벤트, 창 종료 시각의 bounded snapshot이다. `result`는 old/new fundamental, rating/admin target premium, target, tick 상·하한, 최종 가격·거래량·시총을 가진다. 동일 ID의 `completed` 결과는 다시 계산하거나 가격에 중복 적용하지 않는다.
 
 ### 원자 가격 publish와 내부 제어 문서
 
-- `priceVersions/{windowId}`: `status`(`computing|ready|published|failed`), `completedClubCount`, `configVersion`, `sourceWindowId`, `inputDigest`, `publishedAt`, `schemaVersion`. 20개 `priceRuns`가 완료되기 전에는 ready가 될 수 없다.
-- 5단계 pre-ETF publish transaction은 알려진 20개 run과 이전 version을 확인한 뒤 20개 `clubs`, `market/state.currentPriceWindowId`, version 상태를 한 번에 커밋한다. 7단계 최종 프로토콜은 ETF 후보 6개를 추가해 총 28개 문서를 함께 커밋한다. 회차 계산은 transaction 밖에서 하지만 해당 단계에서 공개되는 가격은 혼합 회차가 되지 않는다.
-- `serviceLeases/{leaseId}`: `purpose`, `owner`, 증가하는 `fencingToken`, `leaseExpiresAt`, `updatedAt`, `schemaVersion`.
+- `priceVersions/{windowId}`: `windowId`, `status`(`computing|ready|published`), `expectedClubCount`, `completedClubCount`, `configVersion`, `inputDigest`, `startedAt`, `preparedAt`, `readyAt`, `publishedAt`, `schemaVersion`. 20개 `priceRuns`가 완료되기 전에는 ready가 될 수 없다.
+- `priceHistory/{clubId}`: `clubId`, `points`, `updatedAt`, `schemaVersion`. `points`는 `{windowId, price, calculatedAt}` 최근 60개만 남기며 필드 인덱싱을 끈다.
+- 5단계 pre-ETF publish transaction은 알려진 20개 run과 이전 가격을 확인한 뒤 20개 `clubs`, 20개 bounded `priceHistory`, 닫힌 창 20개의 `applied` 상태, `market/state`의 두 가격 포인터, version 상태를 한 번에 커밋한다. 7단계 최종 프로토콜은 ETF 후보 6개를 추가한다. 회차 계산은 공개 문서를 바꾸기 전에 완료되므로 혼합 회차 가격이 보이지 않는다.
+- `serviceLeases/{leaseId}`: `ownerId`, 증가하는 `fencingToken`, `leaseExpiresAt`, `updatedAt`, `schemaVersion`.
 - `rateLimits/{uid}/windows/{command_window}`: `command`, `count`, `windowStartedAt`, `expiresAt`, `schemaVersion`.
 
 ### 관리자 승인과 폐장
@@ -313,6 +323,7 @@
 - `adminEvents`: `status` + `startsAt`; 종료 판정용 `status` + `endsAt`
 - `leaderboardEntries`: `estimatedTotalAsset desc` + `publicId asc` (서버 계산 전용)
 - 사용자 `tradeHistory` collection group이 아니라 본인 하위 컬렉션의 `executedAt desc`
+- `priceHistory.points`는 검색하지 않으므로 단일 필드 인덱싱 제외
 
 인덱스가 없다는 이유로 보안 범위를 넓히거나 전체 컬렉션을 읽지 않는다.
 
@@ -320,6 +331,7 @@
 
 - 거래 원장, 개인 거래 이력, 폐장 최종 랭킹, 관리자 감사 로그는 축제 운영 보존 정책이 확정될 때까지 자동 삭제하지 않는다.
 - idempotency·완료된 수요 창·price run TTL은 축제 종료 후 감사/이의제기 기간보다 길게 설정하고 운영 중 TTL을 활성화하지 않는다.
+- 화면용 가격 이력은 별도 무한 로그가 아니라 종목당 최근 60개 point만 원자적으로 잘라 유지한다.
 - 뉴스는 `expiresAt` 이후 화면에서 제외하되 감사 필요 시 즉시 삭제하지 않는다.
 - 스키마 변경은 `schemaVersion`과 별도 migration run ID로 추적한다. 운영 문서 전체 덮어쓰기가 아니라 허용 필드의 서버 마이그레이션을 사용한다.
 - 공식 seed는 기본 create-if-absent다. `--force`와 명시적 프로젝트 확인 없이는 기존 운영 가격·자산·상태를 덮어쓰지 않는다.
@@ -327,7 +339,7 @@
 ## 10. 스키마 불변 조건 점검
 
 - 현금과 holding 수량은 음수가 될 수 없다.
-- 가격·돈·수량·거래량은 정수이고 가격은 최소 100원이다.
+- 가격·돈·수량·거래량은 정수이고 개발 가격 범위는 100~1,000,000원이다.
 - 거래 한 건의 사용자 자산, 개인 이력, 전역 원장, idempotency 결과, 수요 샤드 증가는 함께 성공하거나 함께 실패한다.
 - `marketCap = currentPrice × issuedShares`, `totalVolume = buyVolume + sellVolume`이다.
 - 클럽 20개는 동일 초기 가격·기준가·발행량·시총·거래량·계수를 사용한다.

@@ -156,7 +156,7 @@ Enum 변경은 클라이언트 fallback과 Rules/Functions 동시 배포를 요�
 |---|---|
 | `clubId` | 공식 club ID, 활성 문서 존재 |
 | `quantity` | 1 이상의 안전한 정수, 설정된 주문 상한 이하 |
-| `idempotencyKey` | 사용자 작업당 새 고엔트로피 문자열, 길이 제한, 허용 문자 검증 |
+| `idempotencyKey` | 사용자 작업당 새 고엔트로피 문자열; 서버 허용 길이 16~128자, 문자 `[A-Za-z0-9_-]` |
 
 추가 필드는 거부한다. 가격, 총액, 수수료, UID, 보유량, 현금, 관리자 여부, 체결 시각은 요청으로 받지 않는다. Auth token의 UID·검증 이메일·도메인과 서버 문서를 사용한다.
 
@@ -181,13 +181,15 @@ Enum 변경은 클라이언트 fallback과 Rules/Functions 동시 배포를 요�
 
 동일 UID·idempotencyKey·동일 payload의 재호출은 자산을 다시 변경하지 않고 저장된 성공 결과를 반환한다. 같은 키를 다른 side/clubId/quantity에 재사용하면 `duplicate-request` 또는 `conflict`로 거부한다. 네트워크 응답 유실 뒤 재시도도 이 규칙을 따른다.
 
+클라이언트는 기본적으로 `crypto.randomUUID()`로 키를 만들고 요청이 진행 중인 같은 side·club 버튼을 잠근다. 네트워크 오류가 재시도 가능으로 반환되면 같은 키를 보존해 재호출한다. 서버의 길이·문자 검증은 키 생성기의 실제 난수 품질을 증명하지 않으므로 승인된 클라이언트 생성기를 바꾸지 않는다.
+
 ### 5.3 `trades/{tradeId}` — 내부 immutable 원장
 
 `tradeId`, `uid`, `clubId`, `side`, `quantity`, `executionPrice`, `grossAmount`, `idempotencyDigest`, `cashBefore`, `cashAfter`, `holdingQuantityBefore`, `holdingQuantityAfter`, `averageBuyPriceBefore`, `averageBuyPriceAfter`, `demandWindowId`, `shardId`, `configVersion`, `executedAt`, `schemaVersion`을 저장한다. 일반 클라이언트는 전역 collection을 읽거나 쓸 수 없다. `uid`와 원장 잔액은 공개 projection으로 복사하지 않는다.
 
 ### 5.4 `tradeRequests/{requestId}` — 중복 방지
 
-`requestId`는 raw key를 경로에 노출하지 않는 서버 digest다. 문서는 `uid`, `idempotencyDigest`, `payloadDigest`, `side`, `clubId`, `quantity`, terminal `status`, `tradeId`, bounded `result`, `errorCode`, `createdAt`, `completedAt`, `expiresAt`, `schemaVersion`을 가진다. `succeeded` 결과와 자산 변경은 같은 transaction에 있고, 저장하기로 한 업무 거부만 자산 변경 없이 `rejected`로 확정한다. 일시적 내부 오류는 terminal 문서로 가장하지 않아 같은 키로 재시도할 수 있다.
+`requestId`는 raw key를 경로에 노출하지 않는 서버 digest다. 문서는 `uid`, `idempotencyDigest`, `payloadDigest`, `side`, `clubId`, `quantity`, terminal `status`, `tradeId`, bounded `result`, `errorCode`, `createdAt`, `completedAt`, `expiresAt`(보존 정책 전 null), `schemaVersion`을 가진다. `succeeded` 결과와 자산 변경은 같은 transaction에 있고, 저장하기로 한 업무 거부만 자산 변경 없이 `rejected`로 확정한다. 현재 4단계는 성공만 terminal 저장하며 업무 거부와 일시적 내부 오류를 성공 문서로 가장하지 않아 같은 키로 재시도할 수 있다.
 
 ### 5.5 오류 계약
 
@@ -199,19 +201,23 @@ Callable 오류는 안정된 코드와 사용자에게 안전한 메시지, 선�
 
 ### 6.1 `market/config`
 
-모든 종목이 공유하는 서버 소유 설정 문서다. 최소 필드는 `initialPrice`, `basePrice`, `previousClose`, `issuedShares`, `initialVolume`, `minPrice`, `demandShardCount`, `priceTickSeconds`, `maxPriceDelaySeconds`, `rankingTickSeconds`, `maxRankingDelaySeconds`, `maxTickChangeBps`, `maxRatingContributionBps`, `maxDemandContributionBps`, `maxAdminContributionBps`, `ratingPriorMeanMilli`, `ratingPriorCount`, `ratingScaleHalfRangeMilli`, `ratingRecentFullScaleMilli`, `ratingLevelWeightPermille`, `ratingRecentWeightPermille`, `demandLiquidityFloorShares`, `ratingFreshMinutes`, `ratingZeroMinutes`, `maxOrderQuantity`(운영 전 확정), `ratioRoundingMode`, `boundedDeltaRoundingMode`, `festivalTimezone`, `configVersion`, `schemaVersion`, `updatedAt`이다. 두 별점 가중치 합은 1,000이어야 한다. 개발 기준선은 10샤드, 가격·랭킹 60초/최대 120초이며 구체 값과 이유는 `DECISIONS.md`가 정본이다.
+모든 종목이 공유하는 서버 소유 설정 문서다. 최소 필드는 `initialPrice`, `basePrice`, `previousClose`, `issuedShares`, `initialVolume`, `minPrice`, `maxPrice`, `demandShardCount`, `priceTickSeconds`, `maxPriceDelaySeconds`, `rankingTickSeconds`, `maxRankingDelaySeconds`, `maxTickChangeBps`, `maxRatingContributionBps`, `maxDemandContributionBps`, `maxAdminContributionBps`, `ratingPriorMeanMilli`, `ratingPriorCount`, `ratingScaleHalfRangeMilli`, `ratingRecentFullScaleMilli`, `ratingLevelWeightPermille`, `ratingRecentWeightPermille`, `demandLiquidityFloorShares`, `ratingFreshMinutes`, `ratingZeroMinutes`, `priceHistoryLimit`, `maxActiveAdminEvents`, `maxOrderQuantity`(운영 전 확정), `ratioRoundingMode`, `boundedDeltaRoundingMode`, `festivalTimezone`, `configVersion`, `schemaVersion`, `updatedAt`이다. 두 별점 가중치 합은 1,000이어야 한다. 개발 기준선은 10샤드, 가격·랭킹 60초/최대 120초이며 구체 값과 이유는 `DECISIONS.md`가 정본이다.
+
+`maxOrderQuantity`는 양의 안전 정수가 아니면 거래가 fail-closed한다. `activeDemandWindowId`, config version, 열린 종목별 window가 서로 일치하지 않아도 거래를 확정하지 않는다.
 
 ### 6.2 `market/state`
 
-`status`(`open|halted|closed`), `reason`, `activeDemandWindowId`, `currentPriceWindowId`, `configVersion`, `openedAt`, `haltedAt`, `closedAt`, `scheduledOpenAt`, `scheduledCloseAt`, `timezone`, `updatedAt`, `schemaVersion`을 가진 서버 소유·학생 읽기 projection이다. 행위자 UID는 공개 문서에 넣지 않고 `auditLogs`에만 둔다. 개장 전은 `closed`이면서 `openedAt=null`이다. 새 거래 transaction은 이 문서를 읽어 `status=open`인 경우에만 체결한다.
+`status`(`open|halted|closed`), `reason`, `activeDemandWindowId`, `processingPriceWindowId`, `currentPriceWindowId`, `configVersion`, `openedAt`, `haltedAt`, `closedAt`, `scheduledOpenAt`, `scheduledCloseAt`, `timezone`, `updatedAt`, `schemaVersion`을 가진 서버 소유·학생 읽기 projection이다. `processingPriceWindowId`는 재시도해야 할 닫힌 창을 잃지 않게 하며 게시 transaction에서만 null로 돌아간다. 행위자 UID는 공개 문서에 넣지 않고 `auditLogs`에만 둔다. 개장 전은 `closed`이면서 `openedAt=null`이다. 새 거래 transaction은 이 문서를 읽어 `status=open`인 경우에만 체결한다.
 
 ### 6.3 제한된 수요 집계
 
-`marketDemand/{clubId}/windows/{windowId}` 메타는 `clubId`, `windowId`, `status`(`open|closed|applied`), `shardCount`, `openedAt`, `closedAt`, `appliedAt`, `configVersion`, `schemaVersion`을 가진다. 하위 `shards/{shardId}`는 `buyQuantity`, `sellQuantity`, `buyTradeCount`, `sellTradeCount`, `grossBuyAmount`, `grossSellAmount`, `updatedAt`, `schemaVersion`을 가진다. shard는 서버가 결정하고 `[0, shardCount)` 범위이며 현재 공통 설정은 10이다. 가격 계산은 닫힌 고정 window와 고정 shard만 읽고 전체 `trades`를 스캔하지 않는다.
+`marketDemand/{clubId}/windows/{windowId}` 메타는 `clubId`, `windowId`, `status`(`open|closed|applied`), `shardCount`, `openedAt`, `closedAt`, `appliedAt`, `configVersion`, `schemaVersion`을 가진다. 하위 `shards/{shardId}`는 `buyQuantity`, `sellQuantity`, `buyTradeCount`, `sellTradeCount`, `grossBuyAmount`, `grossSellAmount`, `updatedAt`, `schemaVersion`을 가진다. shard는 서버가 결정하고 `[0, shardCount)` 범위이며 현재 공통 설정은 10이다. 거래가 없어서 생성되지 않은 예상 샤드는 0으로 계산하고, 존재하는 잘못된 샤드는 fail-closed한다. 가격 계산은 닫힌 고정 window와 고정 shard 경로만 읽고 전체 `trades`를 스캔하지 않는다.
+
+4단계 거래는 `clubs.buyVolume/sellVolume/totalVolume`을 직접 갱신하지 않는다. 수요 샤드는 거래와 같은 transaction이라 즉시 일치하고, 공개 club 거래량은 다음 가격 회차 자료화 때까지 지연 가능한 projection이다.
 
 ### 6.4 가격 회차와 원자 publish
 
-`priceRuns/{windowId_clubId}`는 한 club의 idempotent 후보 계산으로서 입력 digest, config/window/club ID, 정수 별점·수요·이벤트 snapshot, old/new fundamental, rating/admin target premium, targetPrice, tick 상·하한, 최종 가격, 상태와 단계별 시각을 가진다. `priceVersions/{windowId}`는 `computing|ready|published|failed`, 완료 club 수, config/input digest, publish 시각을 가진 barrier다. 5단계의 pre-ETF 프로토콜은 20개 run 완료 뒤 단일 transaction으로 20개 `clubs`, `market/state.currentPriceWindowId`, version 상태를 함께 갱신한다. 7단계부터 쓰는 최종 프로토콜은 같은 publisher에 ETF 후보 6개를 추가해 20개 `clubs`, 6개 `etfs`, pointer, version을 함께 갱신한다. 어느 프로토콜에서도 계산 중 또는 publish 실패 시 공개 문서는 모두 이전 회차를 유지한다.
+`priceRuns/{windowId_clubId}`는 한 club의 idempotent 후보 계산으로서 canonical `inputDigest`, config/window/club ID, bounded `input` snapshot, 결정론적 `result`, `pending|completed` 상태와 시각을 가진다. `priceVersions/{windowId}`는 `computing|ready|published`, 예상/완료 club 수, config/input digest, 단계별 시각을 가진 barrier다. 5단계 프로토콜은 20개 run 완료 뒤 단일 transaction으로 20개 `clubs`, 최근 60개만 가진 20개 `priceHistory`, 닫힌 창 20개의 applied 상태, `market/state.currentPriceWindowId/processingPriceWindowId`, version 상태를 함께 갱신한다. 7단계부터 같은 publisher에 ETF 후보 6개를 추가한다. 어느 프로토콜에서도 계산 중 또는 publish 실패 시 공개 문서는 모두 이전 회차를 유지한다.
 
 ## 7. 랭킹 계약
 
@@ -265,7 +271,7 @@ Callable 오류는 안정된 코드와 사용자에게 안전한 메시지, 선�
 - `adminAuthorizations/{uid}`: `roles` bounded map, `active`, `claimVersion`, `grantedAt`, `revokedAt`, `updatedAt`, `schemaVersion`. 관리자 함수는 token role뿐 아니라 이 live 문서를 다시 읽어 회수 지연을 줄인다.
 - `adminApprovals/{approvalId}`: `action`, `targetDigest`, `requestedBy`, 서로 다른 `approvedBy`, `status`(`pending|approved|consumed|expired`), `expiresAt`, `createdAt`, `approvedAt`, `consumedAt`, `schemaVersion`. 초기화·finalize·repair 등 고위험 작업은 승인자 2명이 달라야 한다.
 - `rateLimits/{uid}/windows/{command_window}`: `command`, `count`, `windowStartedAt`, `expiresAt`, `schemaVersion`. 서버 transaction만 갱신하며 TTL은 집행 창보다 길다.
-- `serviceLeases/{leaseId}`: `purpose`, `owner`, 증가하는 `fencingToken`, `leaseExpiresAt`, `updatedAt`, `schemaVersion`. 가격·랭킹·폐장 coordinator의 중복 실행을 막으며 만료 owner의 write는 fencing token으로 거부한다.
+- `serviceLeases/{leaseId}`: `ownerId`, 증가하는 `fencingToken`, `leaseExpiresAt`, `updatedAt`, `schemaVersion`. 가격·랭킹·폐장 coordinator의 중복 실행을 막으며 만료 owner의 write는 fencing token으로 거부한다.
 
 ### 8.5 폐장 workflow와 최종 snapshot
 

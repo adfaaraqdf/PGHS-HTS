@@ -35,4 +35,9 @@ test('필수 시장·뉴스·이벤트·랭킹·개인 거래 이력 index를 �
     && index.queryScope === 'COLLECTION'
     && index.fieldPaths.join(',') === 'executedAt,__name__'
   )));
+  assert.ok(indexConfig.fieldOverrides.some((override) => (
+    override.collectionGroup === 'priceHistory'
+    && override.fieldPath === 'points'
+    && override.indexes.length === 0
+  )));
 });
