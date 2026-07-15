@@ -1,190 +1,106 @@
 # 시스템 아키텍처
 
-## 1. 문서 목적과 범위
+## 1. 범위
 
-이 문서는 학교 축제용 실시간 모의 주식 서비스의 0단계 기준 아키텍처다. 대상 규모는 축제 당일 수백 명 동시 접속이며, 기능 수보다 자산 무결성, 서버 권위, 장애 복구, 모바일 사용성, Firebase 비용 예측 가능성을 우선한다. 이 단계에서는 애플리케이션 코드를 정의하지 않는다.
+학교 축제 당일 수백 명이 사용하는 실시간 모의 주식 서비스다. 클라이언트는 Vite 기반 Vanilla JavaScript, 인증·데이터·실시간·서버 권위 계산은 Supabase Auth·PostgreSQL·Realtime·Database RPCs를 사용한다. 공식 자산은 동아리 20개와 조회 전용 ETF 6개다.
 
-공식 데이터 범위는 동아리 20개와 조회 전용 ETF 6개다. 지정가 주문, 호가창, 공매도, 파생상품, 실제 화폐, 사용자 간 송금·주식 양도는 범위 밖이다.
+Supabase는 정적 웹 호스팅을 제공하지 않으므로 빌드 결과는 승인된 별도 정적 호스팅에 배포한다. 호스팅 선택은 데이터 권위나 인증 경계를 바꾸지 않는다.
 
-## 2. 핵심 아키텍처 결정
+## 2. 핵심 결정
 
-1. 브라우저는 인증·표시·요청만 담당한다. 현금, 보유 수량, 평균 매수가, 체결 가격, 거래 기록, 종목 가격, 집계, 랭킹, 관리자 상태의 최종 기록 권한은 모두 서버에 있다.
-2. 매수·매도와 사용자 초기화는 인증된 callable Cloud Functions를 통한다. 거래 한 건의 자산 변경과 중복 방지 기록은 하나의 Firestore 트랜잭션으로 원자적으로 확정한다.
-3. 거래 요청은 `idempotencyKey`로 식별한다. 동일 사용자·키·요청 본문은 이전 결과를 재사용하고, 같은 키의 다른 본문은 거부한다.
-4. 인기 종목 병목을 피하기 위해 거래가 `clubs/{clubId}`를 직접 갱신하지 않는다. 거래 수요는 종목·시간 창별 10개 고정 샤드에 누적하고 가격 엔진이 닫힌 창만 집계한다.
-5. 가격 엔진은 1분 단위 스케줄로 실행하며 정상 목표 주기 60초, 허용 최대 지연 120초다. 한 tick의 총 변동은 ±200bp로 제한한다.
-6. 랭킹은 내부 원장과 공개 투영을 분리한다. `leaderboardEntries/{uid}`는 클라이언트에서 목록 조회할 수 없고, `publicLeaderboard/current`에는 닉네임·총자산·순위만 최대 10개 둔다. UID·이메일·실명·내부 `publicId`는 공개하지 않는다. 목표 주기 60초, 최대 지연 120초다.
-7. ETF는 거래 자산이 아니라 동일 가중 조회용 지수다. 한 가격 회차의 20개 종목 반영이 끝난 뒤 같은 회차 번호로 계산한다.
-8. Firestore 실시간 리스너는 현재 보이는 화면의 제한된 문서·쿼리에만 연결하고 화면 이탈, 로그아웃, 백그라운드 전환 시 해제한다.
-9. Firebase Authentication은 신원을, Security Rules는 클라이언트 접근을, App Check는 비정상 클라이언트 남용 완화를 담당한다. Admin SDK를 쓰는 서버 함수는 Rules를 우회하므로 모든 권한·타입·상태 검증을 함수에서 반복한다.
+1. 브라우저는 로그인, 제한 조회, 표시와 RPC 요청만 담당한다.
+2. `accounts`, `holdings`, 거래 원장, 가격, 수요, 랭킹과 시장 상태의 권위 쓰기는 PostgreSQL 함수만 수행한다.
+3. 사용자 초기화와 거래는 `SECURITY DEFINER` RPC이며 `auth.uid()`와 `auth.users`를 다시 검증한다.
+4. 거래는 계정·시장·종목 행을 잠그고 모든 자산 변경과 idempotency 결과를 한 트랜잭션에서 확정한다.
+5. 거래는 종목 가격 행을 거래량마다 갱신하지 않고 종목·시간 창·10개 샤드의 `private.market_demand`에 누적한다.
+6. 가격 작업은 advisory transaction lock을 획득하고 매분 닫힌 수요 창을 1회 처리한다.
+7. RLS와 grants를 함께 사용한다. 브라우저 역할에는 권위 테이블 쓰기 권한이 없다.
+8. Realtime은 현재 화면의 제한된 테이블만 구독하고 라우트 이탈 시 채널을 제거한다.
+9. 운영 변경은 SQL migration으로만 추적하며 Dashboard-only 스키마 변경을 금지한다.
 
-## 3. 논리 구성
+## 3. 구성
 
-| 계층 | 구성 요소 | 책임 |
+| 계층 | 구성 | 책임 |
 |---|---|---|
-| 모바일 웹 | Vanilla HTML/CSS/JavaScript, Firebase Web SDK | Google 로그인, 입력 검증 보조, 최소 범위 조회, callable 호출, 오류·재시도 UI |
-| 인증·앱 진위 | Firebase Authentication, App Check | 학교 Google 계정 토큰, 이메일 검증 상태, 승인된 앱 요청 신호 |
-| 명령 계층 | callable Cloud Functions | 사용자 초기화, 매수·매도, 내 순위 조회, 관리자 명령, 별점 공급자 연동 |
-| 데이터 계층 | Cloud Firestore | 사용자 원장, 보유 종목, 불변 거래, 시장 상태, 공식 카탈로그, 제한된 공개 투영 |
-| 비동기 계층 | scheduled/triggered Cloud Functions | 수요 창 회전, 가격·ETF·랭킹 계산, 감사·정합성 검사, 만료 데이터 정리 |
-| 운영 계층 | Firebase Hosting, Emulator Suite, Cloud Logging/Monitoring | 배포, 사전 검증, 경보, 복구 근거 |
+| 모바일 웹 | Vite, Vanilla JS, `@supabase/supabase-js` | Google 로그인, bounded 조회, Realtime, RPC, 오류 UI |
+| 인증 | Supabase Auth + Google OAuth | 세션, UID, 확인된 이메일, provider |
+| 접근 제어 | PostgreSQL grants + RLS | 역할·행 단위 읽기 격리, 직접 쓰기 차단 |
+| 명령 | PostgreSQL RPC | 초기화, 매수, 매도, 향후 관리자 명령 |
+| 원장 | PostgreSQL public/private schemas | 자산, 거래, 시장, 수요, 가격, 감사 |
+| 비동기 | Supabase Cron + private functions | 가격·ETF·랭킹 회차, 만료·정합성 작업 |
+| 운영 | Supabase Dashboard/CLI + 외부 정적 호스팅 | migration, 백업, 모니터링, 배포, 롤백 |
 
-### 신뢰 경계
+브라우저에는 Supabase URL과 publishable key만 둔다. service-role key, 데이터베이스 비밀번호, Google OAuth secret, 관리자·별점 공급자 secret은 서버 설정이나 Vault에만 둔다.
 
-- 브라우저가 보내는 UID, 가격, 총액, 현금, 보유량, 관리자 여부, 시간은 신뢰하지 않는다.
-- Auth 토큰의 `uid`, `email`, `email_verified`도 서버에서 다시 확인한다. 허용 도메인은 단일 서버 설정 `ALLOWED_SCHOOL_DOMAIN`을 기준으로 한다.
-- 관리자 custom claim은 필요조건이지 단독 충분조건이 아니다. 함수는 토큰 만료, 계정 상태, 시장 상태와 요청 허용 목록을 함께 검사한다.
-- 외부 별점 시스템은 신뢰된 내부 원장이 아니다. 공급자 응답을 서버 어댑터에서 검증·정규화한 집계값만 가격 입력으로 사용한다.
+## 4. 인증과 초기화
 
-## 4. 주요 데이터 흐름
+1. 클라이언트가 Supabase Google OAuth를 PKCE 흐름으로 시작한다. `hd=pangyo.hs.kr`는 계정 선택 UX용이다.
+2. 클라이언트는 확인 이메일과 도메인을 조기 검사하지만 보안 통제로 간주하지 않는다.
+3. `initialize_user`가 `auth.uid()`로 `auth.users`를 읽고 Google provider, `email_confirmed_at`, `private.app_config.allowed_school_domain`을 확인한다.
+4. UID advisory lock 뒤 기존 계정을 잠근다. 신규 계정만 닉네임 검증과 현금 1,000,000원 지급을 수행한다.
+5. 재로그인은 기존 자산을 유지하고 `last_login_at`만 갱신한다.
 
-### 4.1 로그인과 최초 사용자 초기화
+Google UID당 계정 하나만 보장한다. 한 학생이 여러 학교 Google 계정을 소유한 상황은 학생 명부 없이 완전히 차단할 수 없다.
 
-1. 클라이언트가 Google 인증을 완료한다.
-2. UI는 도메인을 조기 확인하되 이것을 보안 통제로 간주하지 않는다.
-3. 초기화 함수가 토큰의 UID, 검증된 이메일, 허용 학교 도메인과 계정 상태를 확인한다.
-4. Firestore 트랜잭션이 `users/{uid}` 존재 여부를 읽고, 없을 때만 `initialGrantApplied=true`, 초기 현금 1,000,000원과 생성 시각을 함께 기록한다. 재호출은 기존 문서를 사용하며 현금을 다시 지급하지 않는다.
-5. 서버는 검증 성공 후 환경값을 Rules에 직접 주입하는 대신 `schoolVerified=true` custom claim을 발급하고 클라이언트가 ID token을 새로고침하게 한다. Rules는 이 claim을 요구하며 모든 callable은 현재 토큰 이메일·도메인을 다시 검증한다.
-6. 공개 닉네임 정보와 내부 랭킹 엔트리는 서버가 별도 투영한다. 이메일은 사용자 문서에 복제하지 않는다.
+## 5. 거래 흐름
 
-보장 범위는 Google UID당 사용자 문서 하나다. 한 학생이 여러 학교 계정을 소유한 상황은 학생 명부나 별도 학생 식별자 없이는 완전히 차단할 수 없다.
+클라이언트는 `clubId`, 양의 정수 `quantity`, 무작위 `idempotencyKey`만 `buy_stock` 또는 `sell_stock`에 전달한다.
 
-### 4.2 매수·매도
+`private.execute_trade`는 다음을 한 트랜잭션에서 수행한다.
 
-1. 클라이언트는 `clubId`, 양의 정수 `quantity`, 충분한 무작위성을 가진 `idempotencyKey`만 보낸다. 세 필드 외의 가격·총액·UID·시각 등을 추가하면 요청 전체를 거부한다.
-2. 함수는 Auth, App Check, 학교 도메인, 계정 상태, 시장·종목 거래 상태를 확인한다.
-3. 트랜잭션은 중복 방지 문서, 사용자, 보유 종목, 시장 상태, 종목의 서버 가격을 읽는다.
-4. 서버가 원 단위 체결 금액과 새 현금·수량·평균 매수가를 계산한다.
-5. 같은 트랜잭션에서 사용자, 보유 종목, 개인 거래 이력, 전역 거래 원장, idempotency 결과, 현재 수요 창의 결정적 샤드를 기록한다.
-6. 응답 유실 후 같은 키로 재호출해도 자산 변경은 한 번만 일어나고 저장된 결과가 반환된다.
+1. 현재 인증 사용자와 학교 도메인 재검증
+2. `accounts` 본인 행 `FOR UPDATE`
+3. UID+idempotency digest 조회, 동일 payload 성공 결과 재사용
+4. `market_state`와 `clubs` 행 잠금 및 개장·가격 최신성 확인
+5. holding 잠금과 현금·수량·정수 평균가 검증
+6. 계정, holding, 개인 내역, 전역 원장, 요청 결과와 수요 샤드 원자 반영
 
-가격 엔진이 `clubs/{clubId}`를 갱신하는 순간과 거래가 겹치면 Firestore의 잠금·충돌 감지·자동 재시도 순서에 따라 최신 서버 가격으로 체결한다. 시장 정지 명령과 거래는 모두 `market/state`를 transaction에서 읽거나 갱신하므로 하나의 직렬 순서로 확정된다. 정지 transaction이 먼저 확정된 뒤 들어온 거래는 `market-closed`이며, 거래가 먼저 확정된 경우에만 그 다음 정지가 반영된다. 정지 이후 확정되는 새 거래는 없다.
+행 잠금 순서가 같은 사용자 동시 거래를 직렬화한다. 시장 정지 transaction이 먼저 확정되면 이후 주문은 `market-closed`다. 클라이언트 가격·UID·총액·현금·보유량·시각은 신뢰하지 않는다.
 
-4단계의 시장 상대방은 별도 사용자 주문 매칭이나 재고 금고 문서를 만들지 않는 시스템 상대방이다. 따라서 `issuedShares`는 현재 시가총액의 명목 기준이며 매수 가능 재고 상한이 아니다. 재고 기반 `sold-out` 모델로 바꾸려면 스키마·오류 계약·동시성 시험을 별도 변경해야 한다.
+## 6. 가격 흐름
 
-### 4.3 수요 창과 가격 갱신
+매분 Supabase Cron이 `private.run_price_tick()`을 호출한다. 함수는 transaction advisory lock을 사용하고 활성 수요 창을 읽는다.
 
-1. 거래는 `market/state.activeDemandWindowId`를 읽고 `marketDemand/{clubId}/windows/{windowId}/shards/{00..09}` 중 요청 해시로 정한 한 샤드만 증가시킨다.
-2. 매분 UTC 스케줄러가 `serviceLeases/price-coordinator`를 획득하고 fencing token을 검증하는 트랜잭션으로 활성 창을 다음 창으로 회전한다. 동시에 `processingPriceWindowId`에 닫힌 창을 고정한다. 이전 창을 읽었던 미완료 거래는 충돌 후 새 창으로 재시도하므로 닫힌 창에는 뒤늦은 커밋이 남지 않는다.
-3. 가격 작업은 닫힌 창의 종목당 고정 10개 샤드 경로, 별점, 최대 50개 활성 관리자 이벤트, 설정 버전을 한 transaction에서 20개 run 입력으로 동결한다. 거래가 없어서 생성되지 않은 샤드 문서는 0이고 존재하는 비정상 샤드는 전체 회차를 거부한다.
-4. 수요는 정수 `fundamentalPrice`를 움직이고 별점·이벤트는 그 기준의 절대 target premium을 만든다. 현재가는 target을 향해 tick당 상한 안에서 이동하므로 반복 복리와 최저가 반올림 비대칭을 피한다.
-5. `priceRuns/{windowId_clubId}`를 idempotency 경계로 사용해 20개 후보 결과를 만들되 아직 공개 `clubs`에는 쓰지 않는다.
-6. 20개 run이 완료되면 `priceVersions/{windowId}`를 ready로 만든다. 5단계 publisher는 20개 `clubs`, 종목당 최근 60개로 제한한 `priceHistory`, 닫힌 수요 창의 applied 상태, `market/state`의 가격 포인터, version 상태를 한 transaction에 커밋한다. 7단계에서 ETF 계산이 추가되면 최종 publisher가 6개 `etfs`까지 같은 transaction에 포함한다. 각 단계에서 공개 중인 자료 전체가 같은 회차로만 바뀌어 시장·상세·거래가 혼합 회차 가격을 보지 않게 한다.
+- 종목당 10개 `private.market_demand` 샤드 합산
+- 공통 `market_config` 계수
+- 표본 수로 수축한 별점
+- 현재 활성 관리자 이벤트
+- 최소 100원, 최대 1,000,000원, tick당 ±200bp 제한
 
-스케줄러 중복 호출과 함수 재시도는 정상 상황으로 간주한다. lease, fencing token, `processingPriceWindowId`, 결정적 run ID가 중복 가격 반영을 막는다. 계산 중 실패하면 새 수요 창은 계속 열려 있고 다음 호출은 새 창을 또 닫지 않고 기존 processing 창의 미완료 run만 이어서 처리한다.
+20개 종목, 최근 가격 이력과 시장 창 포인터가 한 트랜잭션에서 갱신된다. 거래가 없고 다른 신호도 없으면 가격은 진동하지 않는다. 브라우저는 가격 함수를 실행하거나 입력을 수정할 수 없다.
 
-### 4.4 랭킹
+## 7. 실시간 읽기
 
-- 내부 `leaderboardEntries/{uid}`는 서버가 계산한 총자산, 동점 키, 갱신 시각을 가진다.
-- 공개 함수는 상위 항목만 읽어 competition rank를 부여한다. 동일 총자산은 같은 순위이며, 안정된 출력 순서는 opaque `publicId`로 정한다.
-- 랭킹 작업은 한 회차의 20개 가격을 한 번 읽은 뒤 활성 사용자와 holdings를 고정 page 크기로 순회하고, run ID·cursor로 재개한다. 수백 명 전체 재평가는 요청 경로 밖의 bounded batch 작업이며 일부 사용자만 끝난 상태를 공개하지 않는다.
-- 공개 `publicLeaderboard/current`에는 최대 10개 `{nickname, estimatedTotalAsset, rank}`만 포함한다. 내부 `publicId`는 안정 정렬에만 사용한다.
-- 내 순위는 인증 `getMyRank` callable이 token UID의 내부 entry를 읽고 식별자를 제거해 반환한다. 전체 사용자 스캔을 화면 요청 시 수행하지 않는다.
-- 폐장 시 최종 스냅샷은 불변 보관하고 이후 일반 갱신에서 제외한다.
-
-### 4.5 별점과 관리자 이벤트
-
-- 기존 별점 API 규격이 확정되기 전에는 `averageRating=3.0`, `ratingCount=0`, `ratingRecentDelta=0`, `lastRatingAt=null`인 중립 집계만 사용한다. UI는 `ratingCount=0`을 “평가 없음”으로 표시한다.
-- 향후 별점 쓰기는 공급자 계약에 맞춘 서버 함수만 허용하고 브라우저의 집계 직접 쓰기는 금지한다.
-- 관리자 이벤트·뉴스·시장 상태 변경은 역할별 관리자 함수만 수행한다. 함수는 custom claim과 `adminAuthorizations/{uid}`의 활성 role/version을 모두 확인하며 고위험 작업은 `adminApprovals`의 서로 다른 2인 승인을 소비한다. 행위자 UID는 공개 문서가 아니라 append-only 감사 로그에만 남긴다.
-- 시장 초기화는 일반 CRUD가 아니라 사전 백업, 재인증, 명시적 확인 문자열, 단일 실행 잠금과 결과 감사가 필요한 별도 운영 절차다.
-
-## 5. 실시간 읽기와 비용 경계
-
-| 화면 | 허용 리스너 | 상한/해제 조건 |
+| 화면 | 초기 SELECT와 Realtime | 상한 |
 |---|---|---|
-| 공통 셸 | `market/state`, 필요 시 공지 1건 | 로그인 세션당 각 1개, 로그아웃 시 해제 |
-| 홈 | 제한된 TOP 상승·하락·인기 쿼리, 최신 뉴스, ETF 미리보기 | 각 `limit` 지정, 화면 이탈 시 모두 해제 |
-| 시장 | 활성 동아리 20개 이하 쿼리 | 공식 종목 수를 상한으로 하고 페이지 비가시 시 해제 |
-| 종목 상세 | 선택한 `clubs/{clubId}`, 최근 뉴스 제한 쿼리, 본인 holding | 다른 종목 선택 전 기존 리스너 해제 |
-| ETF | ETF 6개 이하 | 화면 이탈 시 해제 |
-| 내 자산 | 본인 사용자 1개와 본인 holdings 최대 20개 | 다른 사용자의 경로 금지 |
-| 랭킹 | `publicLeaderboard/current` 1개와 본인 결과 1개 | 전체 엔트리 쿼리 금지 |
+| 홈 | `clubs`, `market_state`, `news` | 20, 1, 5 |
+| 시장 | 활성 `clubs` | 20 |
+| 종목 상세 | club 1, rating 1, 뉴스 5, 본인 holdings 20 | 고정 |
+| 내 자산 | 본인 account 1, holdings 20, clubs 20 | 고정 |
+| ETF | `etfs` | 6 |
+| 랭킹 | `public_leaderboard/current` | 1 |
 
-거래 이력은 실시간 구독하지 않고 최신순 cursor pagination으로 읽는다. 전역 `trades`, `users`, `auditLogs`, demand shards, price runs에는 클라이언트 목록 리스너를 허용하지 않는다. 검색은 공식 20개 종목을 이미 읽은 시장 화면에서 로컬 필터링하며 추가 검색 인덱스 서비스를 두지 않는다.
+검색은 시장 화면에서 이미 받은 20개 종목을 로컬 필터링한다. 전체 거래·전체 사용자·감사 로그·수요·가격 run은 구독하지 않는다. `removeChannel`을 라우트 변경과 로그아웃 때 호출한다.
 
-비용 예산은 운영 전 실제 축제 시간과 예상 로그인 수가 정해진 뒤 산정한다. 최소 산식은 “초기 쿼리 문서 수 + 변경 문서 수 × 활성 리스너 수 + 분당 배치 읽기/쓰기 × 개장 분”으로 기록하며, Emulator 부하 테스트와 별도의 비운영 Firebase 프로젝트로 검증한다.
+## 8. 장애와 복구
 
-## 6. 일관성·지연 계약
+- RPC 오류율, transaction lock 대기, Realtime 연결, DB CPU/IO, connection 수, 가격 지연, Cron 실패를 경보한다.
+- 자산 불변식 또는 가격 회차 이상 시 시장을 `halted`로 전환한다.
+- PITR/백업과 불변 거래 원장을 모두 유지한다. 콘솔 직접 수정 대신 승인된 교정 migration/RPC를 쓴다.
+- UI 배포 실패는 이전 정적 release로 롤백한다. DB migration은 사전 검증된 forward fix를 원칙으로 하며 운영 자산을 임의 하향 migration하지 않는다.
 
-| 대상 | 일관성/지연 |
-|---|---|
-| 현금·보유량·평균 매수가·거래 결과 | 단일 거래 트랜잭션 안에서 원자적, 성공 응답 전에 커밋 완료 |
-| idempotency 결과 | 자산 변경과 같은 트랜잭션에 저장 |
-| 수요 샤드 | 거래와 같은 트랜잭션, 화면 표시 집계는 다음 가격 회차까지 지연 가능 |
-| 종목 가격 | 목표 60초, 정상 허용 최대 120초 |
-| ETF | 해당 종목 가격 회차 완료 뒤 공개, 목표 60초·최대 120초 |
-| 총자산·랭킹 | 파생 투영, 목표 60초·최대 120초 |
-| 뉴스·시장 정지 | 서버 커밋 직후 listener 전파, 연결 상태에 따라 UI 지연 가능 |
+## 9. 환경
 
-`market/state.status`는 `open|halted|closed`만 사용한다. 개장 전은 `closed`이면서 `openedAt=null`, cutoff 이후도 `closed`다. 폐장 진행은 별도 `closureRuns/{closureId}`의 `pending→running→ready→finalized` workflow로 관리하고, 최종 결과는 `finalMarketSnapshots/{closureId}`에 불변 보관한다.
+- local, staging, production Supabase 프로젝트를 분리한다.
+- local은 Supabase CLI와 Docker를 사용하고 `supabase db reset`으로 migration+seed를 재현한다.
+- staging에서 Google OAuth redirect URL, RLS, Realtime, Cron, 부하와 백업 복원을 확인한다.
+- production migration, seed, Cron 활성화와 웹 배포는 각각 명시적 승인이 필요하다.
 
-거래 성공 시 수요 샤드 원장은 즉시 원자적으로 갱신되지만 `clubs.buyVolume`, `sellVolume`, `totalVolume`은 다음 가격 회차가 샤드를 집계해 공개할 때까지 이전 projection일 수 있다. 거래 화면은 성공 응답과 본인 자산 snapshot을 권위 결과로 사용하고, 공개 인기·거래량 표시는 이 제한된 지연을 허용한다.
+## 10. 공식 참고
 
-가격 `priceCalculatedAt`이 120초를 넘으면 UI는 “갱신 지연”을 표시한다. 일반 `updatedAt`은 freshness에 사용하지 않는다. 거래 함수는 설정된 최대 가격 나이를 초과하면 신규 체결을 fail-closed로 거부하고 운영 경보를 발생시킨다. 로컬 캐시 값으로 체결하지 않는다.
-
-## 7. 장애 복구와 운영 안전장치
-
-### 감지
-
-- 함수 오류율·지연, 거래 거부율, 트랜잭션 재시도 초과, 가격/랭킹 stale age, App Check 실패율, 샤드 편중, Firestore 사용량에 경보를 둔다.
-- 매 회차마다 `sum(user cash + holdings valuation)` 같은 운영 지표와 거래 원장-사용자 투영 표본 정합성을 검사하되, 자동 수정을 하지 않는다.
-
-### 격리
-
-- 가격 작업이 두 회 연속 최대 지연을 넘거나 정합성 검사가 실패하면 자동 거래 정지를 권장한다.
-- 종목 단위 이상은 해당 `tradingStatus=halted`, 광범위 이상은 `market/state.status=halted`로 격리한다.
-- 오류 중인 가격·ETF·랭킹 투영은 마지막 정상 버전을 유지하고 stale 표시를 붙인다.
-
-### 복구
-
-1. 운영자는 감사 로그와 run ID로 마지막 정상 창을 식별한다.
-2. 중복 안전한 가격/랭킹 작업을 같은 결정적 ID로 재실행한다.
-3. 사용자 자산 불일치는 불변 거래 원장에서 별도 검증 작업으로 재구성해 차이를 보고한 뒤 승인된 복구 함수로만 교정한다.
-4. 교정 전후 스냅샷, 행위자, 이유, 영향 문서 수를 감사 로그에 남긴다.
-5. 복구 확인 뒤 시장을 명시적으로 재개한다. 누락 구간을 임의 가격으로 보간하지 않는다.
-
-Firestore 관리형 백업/PITR 사용 가능 여부와 보존 정책은 실제 Firebase 요금제·프로젝트 지역을 확정한 뒤 운영 전 검증한다. 백업이 있어도 거래 원장, 감사 로그, idempotency 보존을 대체하지 않는다.
-
-## 8. 환경과 배포 경계
-
-- 개발, 테스트/스테이징, 운영 Firebase 프로젝트를 분리한다. Emulator 설정은 운영 자격 증명과 섞지 않는다.
-- 브라우저용 Firebase 구성은 비밀키가 아니지만 프로젝트별 값으로 관리한다. Admin SDK 비밀, 외부 별점 자격 증명, 운영 관리자 설정은 Secret Manager/서버 환경에만 둔다.
-- `ALLOWED_SCHOOL_DOMAIN`의 확인값은 `pangyo.hs.kr`이며 환경별 설정에 주입해야 한다. `FESTIVAL_TIMEZONE`, 개장·폐장 시각, 관리자 UID/이메일, Firebase Auth authorized domain, 별점 공급자 규격은 아직 미정이며 자리표시자를 운영 값으로 바꾸기 전 배포를 차단한다.
-- 리전은 학교 사용자와 Firestore가 가까운 동일 리전 계열로 통일하고, 확정된 리전은 운영 중 임의 변경하지 않는다.
-- 운영 배포와 Git push는 사용자 명시 지시 없이 수행하지 않는다.
-
-가격·랭킹·폐장 coordinator는 `serviceLeases/{leaseId}`의 만료와 증가하는 fencing token을 사용한다. 가격 lease 만료는 공통 `maxPriceDelaySeconds`와 같고 창 회전·run 완료·ready·publish마다 현재 owner/token/expiry를 재검사한다. callable 남용 제한은 `rateLimits/{uid}/windows/{command_window}`에 사용자·명령별로 분산하고 서버 transaction만 갱신한다. 두 경로는 클라이언트 접근을 전면 거부한다.
-
-## 9. 용량 확장 판단
-
-10샤드는 수백 명 규모의 보수적 개발 기본값이다. 부하 테스트에서 특정 샤드의 충돌·지연이 임계치를 넘으면 개장 전에만 shard count를 올리고 설정 버전을 고정한다. 운영 중 샤드 수 변경은 기존 창과 새 창의 해석이 달라지므로 새 window 경계에서만 허용한다.
-
-4단계에서 남는 주요 병목은 같은 사용자의 모든 거래가 `users/{uid}` 한 문서에서 직렬화되는 점과 인기 종목 수요가 10개 샤드 중 하나에 모이는 점이다. 첫 병목은 음수 잔액·수량을 막기 위한 의도된 경계이고, 두 번째는 단일 club 거래량 문서를 매번 쓰는 구조보다 충돌 범위를 약 10분의 1로 줄인다. 수백 명 규모 권장안은 현재 10샤드를 유지한 채 20 requests/s 지속·50 requests/s burst·80% 인기 종목 집중 부하를 스테이징에서 측정하고, p95 지연·ABORTED 재시도가 기준을 넘을 때만 다음 window부터 샤드 수를 조정하는 것이다.
-
-다음 현상은 구조 재검토 신호다.
-
-- 거래 함수 p95 지연이 지속 증가하거나 트랜잭션 재시도가 집중됨
-- 가격 회차가 120초 안에 완료되지 않음
-- 공개 리스너 읽기 비용이 예산을 초과함
-- 랭킹 계산이 전체 사용자 스캔에 의존하게 됨
-
-이 경우 우선 리스너 축소, 샤드 조정, 파생 투영 주기 조정, 작업 큐 분리를 검토한다. 새로운 데이터베이스나 프레임워크 추가는 실제 측정 근거와 별도 결정 없이 하지 않는다.
-
-## 10. 공식 참고 자료
-
-- [Cloud Firestore 모범 사례](https://firebase.google.com/docs/firestore/best-practices)
-- [Cloud Firestore 트랜잭션과 일괄 쓰기](https://firebase.google.com/docs/firestore/manage-data/transactions)
-- [분산 카운터](https://firebase.google.com/docs/firestore/solutions/counters)
-- [실시간 리스너 분리](https://firebase.google.com/docs/firestore/query-data/listen#detach_a_listener)
-- [Firebase App Check 웹](https://firebase.google.com/docs/app-check/web/recaptcha-provider)
-
-## 11. 1단계 전 미확정 외부 정보
-
-- Firebase Auth authorized domain과 관리자 계정
-- 축제 날짜, 타임존 확인, 개장·폐장 시각
-- Firebase 프로젝트 ID, 요금제, 리전, 예산·경보 한도
-- 기존 별점 시스템 API, 인증, 갱신 주기, 장애 시 정책
-- 로고, 이미지, 부스 위치·번호, 운영 시간, 당일 체험 내용
-
-이 값들은 제공되기 전까지 자리표시자 또는 `null`을 유지하며 임의 생성하지 않는다.
+- [Google 로그인](https://supabase.com/docs/guides/auth/social-login/auth-google)
+- [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [API 보안과 grants](https://supabase.com/docs/guides/api/securing-your-api)
+- [Realtime 구독](https://supabase.com/docs/guides/realtime/subscribing-to-database-changes)
+- [로컬 migration](https://supabase.com/docs/guides/local-development/overview)
+- [Cron](https://supabase.com/docs/guides/cron)

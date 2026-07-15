@@ -1,5 +1,3 @@
-import { httpsCallable } from 'firebase/functions';
-
 const safeMessages = Object.freeze({
   unauthenticated: '인증이 만료되었습니다. 다시 로그인해 주세요.',
   'permission-denied': '이 계정으로는 거래할 수 없습니다.',
@@ -7,7 +5,6 @@ const safeMessages = Object.freeze({
   'market-closed': '현재 시장이 열려 있지 않습니다.',
   'trading-halted': '현재 거래할 수 없는 종목입니다.',
   'club-not-found': '존재하지 않는 종목입니다.',
-  'invalid-argument': '거래 요청 값을 확인해 주세요.',
   'invalid-quantity': '거래 수량을 확인해 주세요.',
   'insufficient-funds': '보유 현금이 부족합니다.',
   'insufficient-holdings': '보유 수량이 부족합니다.',
@@ -29,47 +26,39 @@ export class ClientTradeError extends Error {
   }
 }
 
-export function createTradingService({ functions }) {
-  const callBuyStock = httpsCallable(functions, 'buyStock');
-  const callSellStock = httpsCallable(functions, 'sellStock');
-
+export function createTradingService({ supabase }) {
   return Object.freeze({
-    buy(request) {
-      return callTrade(callBuyStock, request);
-    },
-    sell(request) {
-      return callTrade(callSellStock, request);
-    },
+    buy(request) { return callTrade(supabase, 'buy_stock', request); },
+    sell(request) { return callTrade(supabase, 'sell_stock', request); },
   });
 }
 
-async function callTrade(callable, request) {
-  try {
-    const response = await callable({
-      clubId: request.clubId,
-      quantity: request.quantity,
-      idempotencyKey: request.idempotencyKey,
-    });
-    return response.data;
-  } catch (error) {
-    const reason = typeof error?.details?.reason === 'string'
-      ? error.details.reason
-      : inferReason(error?.code);
-    throw new ClientTradeError(
-      reason,
-      safeMessages[reason] ?? safeMessages.internal,
-      {
-        retryable: error?.details?.retryable === true,
-        requestId: error?.details?.requestId ?? null,
-      },
-    );
-  }
+async function callTrade(supabase, functionName, request) {
+  const { data, error } = await supabase.rpc(functionName, {
+    p_club_id: request.clubId,
+    p_quantity: request.quantity,
+    p_idempotency_key: request.idempotencyKey,
+  });
+  if (!error) return toClientResult(data);
+
+  const reason = Object.keys(safeMessages)
+    .find((code) => String(error.message).includes(code)) ?? 'internal';
+  throw new ClientTradeError(reason, safeMessages[reason], {
+    retryable: ['conflict', 'resource-exhausted', 'internal'].includes(reason),
+    requestId: error.hint ?? null,
+  });
 }
 
-function inferReason(code) {
-  const value = String(code ?? '');
-  if (value.includes('unauthenticated')) return 'unauthenticated';
-  if (value.includes('permission-denied')) return 'permission-denied';
-  if (value.includes('resource-exhausted')) return 'resource-exhausted';
-  return 'internal';
+function toClientResult(result) {
+  return {
+    tradeId: result.trade_id,
+    clubId: result.club_id,
+    side: result.side,
+    quantity: result.quantity,
+    executionPrice: result.execution_price,
+    grossAmount: result.gross_amount,
+    cashAfter: result.cash_after,
+    holdingQuantityAfter: result.holding_quantity_after,
+    averageBuyPriceAfter: result.average_buy_price_after,
+  };
 }

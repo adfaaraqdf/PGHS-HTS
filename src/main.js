@@ -8,7 +8,7 @@ async function bootstrap() {
   try {
     const [
       { environment },
-      { initializeFirebase },
+      { initializeSupabase },
       { createRouter },
       { createAuthService },
       { createAuthController },
@@ -17,7 +17,7 @@ async function bootstrap() {
       { createMarketDataService },
     ] = await Promise.all([
       import('./config/env.js'),
-      import('./config/firebase.js'),
+      import('./config/supabase.js'),
       import('./router/router.js'),
       import('./services/auth.js'),
       import('./state/auth-controller.js'),
@@ -26,16 +26,16 @@ async function bootstrap() {
       import('./services/market-data.js'),
     ]);
 
-    const firebaseServices = initializeFirebase(environment);
-    const authService = createAuthService(firebaseServices, {
+    const supabase = initializeSupabase(environment);
+    const authService = createAuthService({ supabase }, {
       allowedSchoolDomain: environment.allowedSchoolDomain,
     });
     const authController = createAuthController(authService);
-    const tradeController = createTradeController(createTradingService(firebaseServices));
+    const tradeController = createTradeController(createTradingService({ supabase }));
     createRouter(container, authController, {
       tradeController,
-      marketData: createMarketDataService(firebaseServices),
-      getUid: () => firebaseServices.auth.currentUser?.uid ?? null,
+      marketData: createMarketDataService({ supabase }),
+      getUid: () => authController.getState().profile?.uid ?? null,
     }).start();
   } catch (error) {
     console.error('PGHS HTS startup failed.', error);

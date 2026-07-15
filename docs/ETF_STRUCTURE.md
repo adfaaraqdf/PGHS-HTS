@@ -103,9 +103,9 @@ ETF priceChangeRate    = previousClose > 0
 - 구성 종목 가격이 아직 없거나 유효하지 않으면 일부 종목만으로 지수를 계산하지 않는다. 마지막 정상 projection을 `stale: true`로 유지하거나 값 전체를 unavailable로 처리하고 오류를 관측한다.
 - 시장 또는 종목 거래 정지는 구성에서 제거한다는 뜻이 아니다. 정지 종목의 마지막 서버 확정 가격을 포함하고 최신성 시각을 노출한다.
 
-## Firestore projection 최소 계약
+## PostgreSQL projection 최소 계약
 
-`etfs/{etfId}`는 서버 소유 projection이며 다음 필드를 갖는다. 상세 타입·소유권은 `DATA_CONTRACTS.md`가 정본이다.
+`public.etfs`의 `id=etf_id` 행은 서버 소유 projection이며 다음 필드를 갖는다. 상세 타입·소유권은 `DATA_CONTRACTS.md`가 정본이다.
 
 | 필드 | 계약 |
 |---|---|

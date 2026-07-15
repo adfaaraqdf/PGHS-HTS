@@ -8,41 +8,33 @@ import {
 
 const validTestEnvironment = {
   VITE_APP_ENV: 'test',
-  VITE_FIREBASE_API_KEY: 'demo-api-key',
-  VITE_FIREBASE_AUTH_DOMAIN: 'demo-pghs-hts.local',
-  VITE_FIREBASE_PROJECT_ID: 'demo-pghs-hts',
-  VITE_FIREBASE_STORAGE_BUCKET: 'demo-pghs-hts.local',
-  VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000',
-  VITE_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000',
-  VITE_FIREBASE_FUNCTIONS_REGION: 'us-central1',
-  VITE_USE_FIREBASE_EMULATORS: 'true',
+  VITE_SUPABASE_URL: 'http://127.0.0.1:54321',
+  VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_placeholder',
   VITE_ALLOWED_SCHOOL_DOMAIN: 'students.example.test',
-  VITE_FIREBASE_APP_CHECK_PROVIDER: 'disabled',
-  VITE_FIREBASE_APP_CHECK_SITE_KEY: 'demo-not-used',
 };
 
-test('accepts a safe demo-project test environment', () => {
+test('accepts a safe local Supabase test environment', () => {
   const environment = validateClientEnvironment(validTestEnvironment);
 
   assert.equal(environment.appEnvironment, 'test');
-  assert.equal(environment.useEmulators, true);
-  assert.equal(environment.firebaseConfig.projectId, 'demo-pghs-hts');
+  assert.equal(environment.supabaseUrl, 'http://127.0.0.1:54321');
+  assert.equal(environment.supabasePublishableKey, 'sb_publishable_test_placeholder');
 });
 
-test('fails clearly when a required public Firebase value is missing', () => {
-  const environment = { ...validTestEnvironment, VITE_FIREBASE_APP_ID: '' };
+test('fails clearly when a required public Supabase value is missing', () => {
+  const environment = { ...validTestEnvironment, VITE_SUPABASE_PUBLISHABLE_KEY: '' };
 
   assert.throws(
     () => validateClientEnvironment(environment),
     (error) => error instanceof EnvironmentConfigurationError
-      && error.message.includes('VITE_FIREBASE_APP_ID'),
+      && error.message.includes('VITE_SUPABASE_PUBLISHABLE_KEY'),
   );
 });
 
-test('does not allow a production build to target emulators', () => {
+test('does not allow a test build to target a hosted Supabase project', () => {
   const environment = {
     ...validTestEnvironment,
-    VITE_APP_ENV: 'production',
+    VITE_SUPABASE_URL: 'https://production-project.supabase.co',
   };
 
   assert.throws(

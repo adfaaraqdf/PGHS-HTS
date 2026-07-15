@@ -15,17 +15,17 @@
 | 역할 | 주요 책임 | 겸임 제한 |
 | --- | --- | --- |
 | Incident Commander(IC) | 심각도, halt/resume, 학생 공지, 종료 결정 | 고위험 수리 단독 승인 금지 |
-| Firebase Operator | 대시보드, Functions/Firestore/Auth/App Check, rollback·export | 시장 이벤트 내용 단독 결정 금지 |
+| Supabase Operator | 대시보드, Database Functions/PostgreSQL/Auth/rate limiting and abuse monitoring, rollback·export | 시장 이벤트 내용 단독 결정 금지 |
 | Market Operator | 개폐장, 종목 halt, 뉴스·이벤트, finalization | 자신의 작업을 단독 최종 승인 금지 |
 | Integrity Reviewer | 거래/잔액/보유/가격/랭킹 reconciliation, repair 검토 | repair 실행자와 분리 권장 |
 | Student Support/Comms | 현장 문의, 상태 공지, 재현 정보 수집 | UID/token/전체 이메일 수집 금지 |
 | Rating Liaison | 외부 별점 공급자 상태·대조 | 가격·자산 직접 수정 금지 |
 
-각 역할의 실명, 학교 연락처, 대리자, 교대 시간을 운영 sheet에 적고 공개 문서에는 비밀·개인 연락처를 넣지 않는다. 최소 IC·Firebase Operator·Market Operator 3명이 개장부터 finalized 확인까지 현장에 있어야 한다.
+각 역할의 실명, 학교 연락처, 대리자, 교대 시간을 운영 sheet에 적고 공개 문서에는 비밀·개인 연락처를 넣지 않는다. 최소 IC·Supabase Operator·Market Operator 3명이 개장부터 finalized 확인까지 현장에 있어야 한다.
 
 ## 3. 운영 상태와 제어
 
-`market/state.status` enum은 `open`, `halted`, `closed`만 사용한다. 개장 전은 `status=closed`이면서 `openedAt=null`, 개장 중은 `open`, 장애 정지는 `halted`, cutoff 이후는 `closed`다. 종목 상태는 별도의 `tradingStatus=open|halted|closed`를 따른다.
+`market_state.status` enum은 `open`, `halted`, `closed`만 사용한다. 개장 전은 `status=closed`이면서 `opened_at=null`, 개장 중은 `open`, 장애 정지는 `halted`, cutoff 이후는 `closed`다. 종목 상태는 `clubs.trading_status=open|halted|closed`를 따른다.
 
 폐장 계산 진행 상태는 market status에 새 enum을 추가하지 않고 서버 소유 `closureRuns/{closureId}`로 분리한다. 계약된 흐름은 `pending → running → ready → finalized`이며 11단계에서 구현한다. `finalized`는 checksum이 확인된 immutable 최종 결과를 뜻하며 market status 값이 아니다.
 
@@ -36,14 +36,14 @@
 ### T-14~7일
 
 - U-001~U-019 운영 필수 결정을 닫고 개인정보 안내·시상·별점 제출 경로를 학교가 승인한다.
-- production project/region/billing/domain/Auth/App Check/IAM/예산 경보를 검증한다.
+- production project/region/billing/domain/Auth/rate limiting and abuse monitoring/프로젝트 역할 및 CI 접근 제어/예산 경보를 검증한다.
 - 정본 clubs 20/ETFs 6, 실제 선택 콘텐츠, 별점 adapter를 staging에서 검증한다.
-- 예상 peak 1.5배 부하, hotspot, 보안, 비용, 폐장·rollback·App Check 오차단 훈련을 마친다.
+- 예상 peak 1.5배 부하, hotspot, 보안, 비용, 폐장·rollback·rate limiting and abuse monitoring 오차단 훈련을 마친다.
 - 관리자 개인 계정과 역할을 발급하고 예비 관리자의 claim 회수·재발급을 시험한다.
 
 ### T-3~1일
 
-- 기능 동결 후 승인 release ID, build/Rules/Functions/config/catalog hash를 기록한다.
+- 기능 동결 후 승인 release ID, build/RLS/Database Functions/config/catalog hash를 기록한다.
 - production을 `status=closed`, `openedAt=null`로 배포해 smoke, managed export·격리 복원 확인을 마친다.
 - 실제 학교 계정 2개와 외부 계정 1개로 허용/거부, 최초 자금 1회, 로그아웃을 확인한다.
 - 대시보드·경보·incident log·공지 채널·현장 네트워크/충전/예비 기기를 확인한다.
@@ -54,35 +54,35 @@
 - 전원 출석·역할·연락망·승인자 2인을 확인한다.
 - 현재 project/release/config/timezone/open/close를 소리 내어 교차 확인한다.
 - market `status=closed`, `openedAt=null`, 모든 club 활성/예정 상태, admin event 목록과 기간, scheduler·index·backup 상태를 확인한다.
-- Functions error/latency, Firestore usage, price/ranking age, Auth, App Check baseline을 10분 관찰한다.
+- Database Functions error/latency, PostgreSQL usage, price/ranking age, Auth, rate limiting and abuse monitoring baseline을 10분 관찰한다.
 - 실제 거래가 없음을 확인한 뒤에만 필요 시 마지막 초기화를 수행한다. 첫 실제 거래 후 reset은 금지한다.
 
 ### T-15분
 
 - 학생 로그인·홈/시장/상세/ETF/자산/랭킹을 실제 모바일 2종에서 확인한다.
-- 허용 도메인·App Check·공지 문구·지원 QR/채널을 확인한다.
+- 허용 도메인·rate limiting and abuse monitoring·공지 문구·지원 QR/채널을 확인한다.
 - 개장 승인자 2인이 `openAt`, market config, rating freshness, 가격/랭킹 last update를 서명한다.
 
 ## 5. 개장 절차
 
-1. IC가 '개장 준비'를 선언하고 Firebase Operator가 오류율·quota·비용·scheduler 정상 상태를 보고한다.
+1. IC가 '개장 준비'를 선언하고 Supabase Operator가 오류율·quota·비용·scheduler 정상 상태를 보고한다.
 2. Integrity Reviewer가 사용자 초기화 fixture와 가격·ETF·랭킹 초기 스냅샷을 확인한다.
-3. Market Operator가 관리자 Function에 reason과 승인자 정보를 넣어 `open`을 요청한다.
+3. Market Operator가 관리자 RPC에 reason과 승인자 정보를 넣어 `open`을 요청한다.
 4. 두 번째 승인자가 대상 project·서버 시각·이전 상태를 확인한다.
 5. 1건의 승인된 현장 smoke 거래를 수행하고 request/trade/history/user/holding/demand reconciliation 후 학생 공지를 연다. 실제 시상 데이터에 영향을 주면 개장 전 격리 fixture로만 수행한다.
 6. 개장 시각·release/config hash·담당자를 incident/operations log에 남긴다.
 
 ## 6. 정상 운영 감시
 
-Firebase Operator는 대시보드를 상시 보고 15분마다 운영 log에 snapshot을 남긴다. IC에게 다음을 보고한다.
+Supabase Operator는 대시보드를 상시 보고 15분마다 운영 log에 snapshot을 남긴다. IC에게 다음을 보고한다.
 
-- Auth 성공/거부 추세, callable expected/unexpected error와 p50/p95/p99
+- Auth 성공/거부 추세, RPC expected/unexpected error와 p50/p95/p99
 - transaction contention/abort, 인기 club 요청 집중, demand shard 편향
 - `clubs.priceCalculatedAt`, `etfs.sourcePriceAsOf`, ranking `updatedAt` age와 scheduler 성공
-- Firestore read/write, Functions invocation/instance, Hosting/egress, quota·예산 추세
-- App Check valid/invalid/unknown 비율
+- PostgreSQL read/write, Database Functions invocation/instance, static hosting/egress, quota·예산 추세
+- rate limiting and abuse monitoring valid/invalid/unknown 비율
 - rating last source time, ingest/reconcile 실패, active admin events
-- market/club status, 공지, 미해결 학생 문의 수
+- market/club 상태, 공지, 미해결 학생 문의 수
 
 현장 지원은 학생에게 닉네임, 발생 시각, 화면, 안전한 오류 코드, 요청 성공/실패 여부만 요청한다. 비밀번호, ID token, 전체 이메일 screenshot, 서비스 계정 키를 요구하지 않는다.
 
@@ -101,7 +101,7 @@ Firebase Operator는 대시보드를 상시 보고 15분마다 운영 log에 sna
 
 ### 8.1 자산·거래 무결성 이상
 
-1. 전체 market halt. 문제 Function과 scheduler를 임의 재시작하지 않는다.
+1. 전체 market halt. 문제 RPC와 scheduler를 임의 재시작하지 않는다.
 2. UID 자체를 공개 log에 복사하지 말고 제한된 incident reference로 연결한다.
 3. idempotency request, global trade, user history, user/holding before-after, demand shard, audit를 correlation ID로 대조한다.
 4. 클라이언트 표시 문제인지 권위 데이터 문제인지 분리한다. 캐시 문제면 authoritative refresh로 재확인한다.
@@ -111,7 +111,7 @@ Firebase Operator는 대시보드를 상시 보고 15분마다 운영 log에 sna
 ### 8.2 인기 종목 경합·거래 지연
 
 1. club별 abort/latency와 10개 shard 분포, 단일 user hotspot을 확인한다.
-2. 한 종목에만 실패가 집중되면 해당 club halt, 전역 user 문서/Function 병목이면 전체 halt한다.
+2. 한 종목에만 실패가 집중되면 해당 club halt, 전역 user 문서/RPC 병목이면 전체 halt한다.
 3. 재시도 폭주를 막기 위해 UI cooldown·안내를 사용한다. shard 수를 행사 중 즉흥 변경하지 않는다.
 4. backlog가 가라앉은 뒤 동일키 재호출 안전성과 reconciliation을 확인하고 제한적으로 resume한다.
 
@@ -132,11 +132,11 @@ adapter를 disable하고 last source time을 표시한다. 10분부터 최근 �
 
 ### 8.6 로그인 장애·도메인 오설정
 
-Auth provider 상태, authorized domain, exact allowed domain, token clock, App Check를 분리 진단한다. 기존 세션과 신규 로그인을 구분한다. allowed domain을 넓혀 개인 계정을 임시 허용하지 않는다. 학교가 확인한 설정만 2인 승인으로 수정한다.
+Auth provider 상태, Site URL·Redirect URLs, exact allowed domain, token clock, 요청 제한·남용 모니터링을 분리 진단한다. 기존 세션과 신규 로그인을 구분한다. allowed domain을 넓혀 개인 계정을 임시 허용하지 않는다. 학교가 확인한 설정만 2인 승인으로 수정한다.
 
-### 8.7 App Check 오차단
+### 8.7 rate limiting and abuse monitoring 오차단
 
-valid 사용자 실패와 공격 traffic을 지표로 구분한다. 광범위한 합법 차단이면 IC+Firebase Operator 승인으로 해당 서비스 enforcement를 잠시 monitor로 바꾸고 market halt 또는 제한 운영한다. 원인 수정·staging smoke 뒤 다시 enforce한다.
+valid 사용자 실패와 공격 traffic을 지표로 구분한다. 광범위한 합법 차단이면 IC+Supabase Operator 승인으로 해당 서비스 enforcement를 잠시 monitor로 바꾸고 market halt 또는 제한 운영한다. 원인 수정·staging smoke 뒤 다시 enforce한다.
 
 ### 8.8 quota·비용 급증
 
@@ -144,18 +144,18 @@ valid 사용자 실패와 공격 traffic을 지표로 구분한다. 광범위한
 
 ### 8.9 관리자 계정 의심
 
-즉시 해당 claim·세션을 회수하고 market halt, 최근 adminEvents/news/market/config/audit를 검토한다. 감사 로그를 삭제하지 않고 잘못된 이벤트는 취소 기록으로 무효화한다. 새 개인 계정에 최소 역할을 발급한 뒤 2인 검증한다.
+즉시 해당 관리자 역할·세션을 회수하고 market halt, 최근 `admin_events`, `news`, `market_config`, `private.audit_logs`를 검토한다. 감사 로그를 삭제하지 않고 잘못된 이벤트는 취소 기록으로 무효화한다. 새 개인 계정에 최소 역할을 발급한 뒤 2인 검증한다.
 
 ## 9. 시장·종목 정지와 재개 기준
 
-전체 halt 조건: 자산/원장 의심, 서버 가격 stale >120초, 광범위 Auth/App Check/거래 오류, Firestore quota 위험, unauthorized admin, 폐장 상태 불명. 종목 halt 조건: 특정 club 데이터·경합·이벤트 오류가 격리 가능하고 사용자 자산 전역 불변식이 정상.
+전체 halt 조건: 자산/원장 의심, 서버 가격 stale >120초, 광범위 Auth/rate limiting and abuse monitoring/거래 오류, PostgreSQL quota 위험, unauthorized admin, 폐장 상태 불명. 종목 halt 조건: 특정 club 데이터·경합·이벤트 오류가 격리 가능하고 사용자 자산 전역 불변식이 정상.
 
 재개 전에 다음을 모두 확인한다.
 
 - 원인이 설명되고 재현/수정 또는 안전한 완화가 있다.
 - affected window 거래 reconciliation과 가격/랭킹 age가 정상이다.
 - 테스트 거래 또는 비파괴 smoke가 성공한다.
-- 대시보드가 최소 5분 안정적이고 IC·Firebase Operator·Integrity Reviewer가 승인한다.
+- 대시보드가 최소 5분 안정적이고 IC·Supabase Operator·Integrity Reviewer가 승인한다.
 - 중단·영향·재개 시각과 학생 안내가 기록됐다.
 
 ## 10. 폐장 절차
@@ -189,7 +189,7 @@ valid 사용자 실패와 공격 traffic을 지표로 구분한다. 광범위한
 ### T+1시간
 
 - finalized/export/alert 상태와 unresolved incident를 확인하고 admin event·시장 쓰기를 잠근다.
-- 행사 시간에만 올린 min instances를 0으로, App Check·Rules는 안전한 운영 상태로 유지한다.
+- 행사 시간에만 올린 min instances를 0으로, rate limiting and abuse monitoring·RLS는 안전한 운영 상태로 유지한다.
 - 실제 관리자 중 더 이상 필요 없는 claim과 임시 시험 계정을 회수한다.
 
 ### T+1일

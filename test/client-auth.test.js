@@ -6,6 +6,7 @@ import {
   assertSchoolAccountForUx,
 } from '../src/auth/client-policy.js';
 import { createAuthController } from '../src/state/auth-controller.js';
+import { createAuthService } from '../src/services/auth.js';
 
 const schoolUser = {
   email: 'student@students.example.test',
@@ -106,4 +107,40 @@ test('an expired authentication session is shown as access denied', async () => 
   await flushTasks();
   assert.equal(controller.getState().status, 'denied');
   assert.equal(controller.getState().message, '인증 만료');
+});
+
+test('Supabase auth initializes the current UID without sending identity or cash', async () => {
+  const calls = [];
+  const storage = new Map();
+  const service = createAuthService({
+    supabase: {
+      auth: {
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+        getSession: async () => ({ error: null }),
+        signInWithOAuth: async () => ({ error: null }),
+        signOut: async () => ({ error: null }),
+      },
+      async rpc(name, args) {
+        calls.push({ args, name });
+        return { data: { uid: 'server-uid', nickname: '학생', cash: 1_000_000 }, error: null };
+      },
+    },
+  }, {
+    allowedSchoolDomain: 'pangyo.hs.kr',
+    location: { origin: 'http://127.0.0.1:5173', pathname: '/' },
+    storage: {
+      getItem: (key) => storage.get(key) ?? null,
+      removeItem: (key) => storage.delete(key),
+      setItem: (key, value) => storage.set(key, value),
+    },
+  });
+
+  const result = await service.initializeCurrentUser({
+    uid: 'client-uid',
+    email: 'student@pangyo.hs.kr',
+    emailVerified: true,
+  }, '학생');
+
+  assert.deepEqual(calls, [{ name: 'initialize_user', args: { p_nickname: '학생' } }]);
+  assert.equal(result.user.uid, 'server-uid');
 });

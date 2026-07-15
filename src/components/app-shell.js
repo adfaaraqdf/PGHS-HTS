@@ -44,7 +44,7 @@ export function renderFatalError(container, error) {
       <p class="eyebrow">설정 확인 필요</p>
       <h1>서비스를 시작할 수 없습니다.</h1>
       <p>${escapeHtml(error.message)}</p>
-      <p class="fatal-error__hint">.env.example을 참고해 현재 환경의 공개 Firebase 설정을 입력한 뒤 다시 시작하세요.</p>
+      <p class="fatal-error__hint">.env.example을 참고해 현재 환경의 Supabase URL과 publishable key를 입력한 뒤 다시 시작하세요.</p>
       <button class="button" type="button" data-retry>다시 시도</button>
     </main>`;
 
