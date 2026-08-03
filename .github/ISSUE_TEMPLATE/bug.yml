@@ -1,0 +1,74 @@
+name: 버그 보고
+description: 재현 가능한 결함과 영향을 보고합니다.
+title: "[Bug] "
+labels: []
+body:
+  - type: input
+    id: screen
+    attributes:
+      label: 발생 화면
+      placeholder: 예) 종목 상세 매수 확인 모달
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 재현 방법
+      description: 초기 상태부터 번호 순서로 적습니다. 실제 개인정보나 secret은 제거합니다.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 브라우저·기기
+      placeholder: 예) iPhone 13 / iOS 18 / Safari, 390px
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 로그
+      description: secret, token, 이메일, UID 등 개인정보를 제거한 최소 로그만 붙입니다.
+      render: shell
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 심각도
+      options:
+        - BLOCKER — 운영·자산 무결성 또는 보안 차단
+        - HIGH — 핵심 여정 실패 또는 큰 회귀
+        - MEDIUM — 우회 가능한 기능·UI 결함
+        - LOW — 경미한 표시·문서 결함
+    validations:
+      required: true
+  - type: dropdown
+    id: integrity
+    attributes:
+      label: 데이터 무결성 영향
+      options:
+        - 있음 또는 의심됨
+        - 없음
+        - 아직 확인하지 못함
+    validations:
+      required: true
+  - type: textarea
+    id: integrity_detail
+    attributes:
+      label: 데이터 무결성 영향 설명
+      placeholder: 현금, 보유량, 거래, 가격, 랭킹, 감사 로그에 미치는 영향을 적습니다.

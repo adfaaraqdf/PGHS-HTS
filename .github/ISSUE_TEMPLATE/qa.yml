@@ -1,0 +1,56 @@
+name: QA 실행
+description: 수동·자동 테스트 범위와 결과를 기록합니다.
+title: "[QA] "
+labels: []
+body:
+  - type: textarea
+    id: target
+    attributes:
+      label: 테스트 대상
+      placeholder: 기능, PR, commit, 화면 또는 데이터 계약
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 테스트 환경
+      placeholder: 브랜치/commit, Node, Docker, Supabase local, 브라우저·기기
+    validations:
+      required: true
+  - type: textarea
+    id: procedure
+    attributes:
+      label: 테스트 절차
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 예상 결과
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 스크린샷
+      description: 개인정보나 secret이 없는 이미지를 끌어 놓습니다.
+  - type: dropdown
+    id: result
+    attributes:
+      label: 통과 여부
+      options:
+        - 통과
+        - 실패
+        - Blocked
+        - 일부만 실행
+    validations:
+      required: true
