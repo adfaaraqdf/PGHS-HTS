@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 협업 규칙 확인
+    url: https://github.com/adfaaraqdf/PGHS-HTS/blob/main/CONTRIBUTING.md
+    about: 새 Issue를 만들기 전에 작업·브랜치·보안 규칙을 확인합니다.

@@ -1,0 +1,84 @@
+name: 기능 작업
+description: 하나의 기능 또는 계약 작업을 제안합니다.
+title: "[Feature] "
+labels: []
+body:
+  - type: input
+    id: task_title
+    attributes:
+      label: 작업 제목
+      placeholder: 예) ETF 동일 가중 계산 함수
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: 담당 역할
+      options:
+        - 팀장·통합
+        - ETF
+        - 랭킹
+        - 관리자·시장 운영
+        - 테스트·CI·QA
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표
+      description: 사용자 또는 시스템 관점의 완료 결과를 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: prerequisites
+    attributes:
+      label: 선행 작업
+      placeholder: 관련 Issue, 승인된 계약, 필요한 환경
+    validations:
+      required: true
+  - type: textarea
+    id: allowed_scope
+    attributes:
+      label: 수정 허용 범위
+      placeholder: 파일 또는 폴더와 허용하는 변경
+    validations:
+      required: true
+  - type: textarea
+    id: forbidden_scope
+    attributes:
+      label: 수정 금지 범위
+      placeholder: 건드리면 안 되는 기능, 파일, 데이터
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 조건
+      description: 리뷰어가 검증할 수 있는 조건을 체크리스트로 적습니다.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: 테스트
+      description: 실행할 실제 명령과 수동 확인을 적습니다.
+      value: |
+        - [ ] `npm run lint`
+        - [ ] `npm test`
+        - [ ] `npm run build`
+    validations:
+      required: true
+  - type: textarea
+    id: related
+    attributes:
+      label: 관련 작업
+      placeholder: 선행·후속·병렬 Issue 번호
+  - type: textarea
+    id: risks
+    attributes:
+      label: 예상 위험
+      placeholder: 보안, 데이터 무결성, 동시성, Realtime, 비용, 충돌 위험
+    validations:
+      required: true
